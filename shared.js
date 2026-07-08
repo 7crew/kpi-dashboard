@@ -179,6 +179,14 @@ async function saveKpiRows(year, period, rows, updatedBy){
   await batch.commit();
 }
 
+// Deletes one specific quarter's explicit KPI record — used to undo an accidental
+// save (e.g. a stray "0%" saved before carry-forward existed) so that quarter goes
+// back to showing the carried-forward value from the prior quarter instead.
+async function deleteKpiRow(year, period, leaderId, kpiIndex){
+  const id = year+'_'+period+'_'+leaderId+'_'+kpiIndex;
+  await db.collection('kpiData').doc(id).delete();
+}
+
 // Returns progress/status for all 4 quarters of a year for one leader — used to show
 // year-long progression (Q1 → Q2 → Q3 → Q4) without needing 4 separate loads.
 async function loadKpiDataAllQuarters(year, leaderId){

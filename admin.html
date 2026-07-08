@@ -279,6 +279,7 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
       </div>
     </div>
     <div class="modal-ft">
+      <button class="mbtn mbtn-sec" id="mResetBtn" style="display:none;margin-right:auto" onclick="resetToCarryForward()" title="Clears this quarter's saved value so it goes back to showing the prior quarter's number">↺ Reset This Quarter</button>
       <button class="mbtn mbtn-sec" onclick="closeModal()">Cancel</button>
       <button class="mbtn mbtn-primary" onclick="applyEdit()">Save Changes</button>
     </div>
@@ -377,14 +378,16 @@ async function loadAll(){
   }catch(e){ console.error(e); setStatus('Load failed','error'); }
 }
 
-async function persistAll(){
+// Saves ONLY the one KPI that was actually changed — never the whole board — so KPIs
+// that are just showing a carried-forward default never get locked in as a real,
+// explicit (and wrong) record for a quarter nobody touched.
+async function saveOneKpi(leaderId, kpiIndex){
   setStatus('Saving…','saving');
-  const rows=[];
-  LEADERS.forEach(l=>l.kpis.forEach((k,i)=>{
-    rows.push({leaderId:l.id,leaderName:l.name,kpiIndex:i,kpiLabel:k.label,kpiType:k.kpiType,progress:k.progress,status:k.status});
-  }));
+  const l = LEADERS.find(x=>x.id===leaderId);
+  const k = l.kpis[kpiIndex];
+  const row = {leaderId:l.id, leaderName:l.name, kpiIndex, kpiLabel:k.label, kpiType:k.kpiType, progress:k.progress, status:k.status};
   try{
-    await saveKpiRows(YEAR, PERIOD, rows, SESSION.displayName);
+    await saveKpiRows(YEAR, PERIOD, [row], SESSION.displayName);
     setStatus('✓ Saved','saved'); setTimeout(()=>setStatus('',''),1800);
   }catch(e){ console.error(e); setStatus('Save failed','error'); }
 }
@@ -524,12 +527,14 @@ function closeModal(){document.getElementById('editModal').classList.remove('ope
 function populateKpiSel(){
   const lid=document.getElementById('mLeader').value,ks=document.getElementById('mKpi');
   ks.innerHTML='<option value="">— Select KPI —</option>';
+  document.getElementById('mResetBtn').style.display='none';
   if(!lid) return;
   const l=LEADERS.find(x=>x.id===lid);
   l.kpis.forEach((k,i)=>ks.innerHTML+='<option value="'+i+'">KPI #'+(i+1)+': '+k.label+'</option>');
   ks.onchange=async function(){
     const ki=parseInt(this.value);
     if(isNaN(ki)) return;
+    document.getElementById('mResetBtn').style.display='inline-block';
     const k=l.kpis[ki];
     if(k.kpiType==='compliance'){
       document.getElementById('percentageControls').style.display='none';
@@ -565,9 +570,19 @@ async function logMiss(){
   k.status=statusFromProgress(k.progress);
   document.getElementById('complianceScore').textContent=k.progress+'%';
   document.getElementById('missDesc').value=''; document.getElementById('missDeduction').value='';
-  await persistAll();
+  await saveOneKpi(lid, ki);
   renderCards(); renderSummary();
   populateKpiSel(); document.getElementById('mKpi').value=ki; document.getElementById('mKpi').onchange();
+}
+
+async function resetToCarryForward(){
+  const lid=document.getElementById('mLeader').value, ki=parseInt(document.getElementById('mKpi').value);
+  if(!lid || isNaN(ki)) return;
+  if(!confirm('Clear the saved value for this KPI in '+YEAR+' '+PERIOD+'? It will go back to showing whatever the prior quarter had.')) return;
+  await deleteKpiRow(YEAR, PERIOD, lid, ki);
+  closeModal();
+  await loadAll();
+  renderCards(); renderSummary();
 }
 
 function applyEdit(){
@@ -584,7 +599,7 @@ function applyEdit(){
   updateEbitdaUI();
   renderCards();renderSummary();
   closeModal();
-  persistAll();
+  if(lid && !isNaN(ki)) saveOneKpi(lid, ki);
   setEbitda(YEAR, PERIOD, ebitdaPct);
 }
 

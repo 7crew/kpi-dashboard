@@ -111,11 +111,12 @@ async function loadAll(){
   }catch(e){ console.error(e); setStatus('Load failed','error'); }
 }
 
-async function saveProgress(){
+async function saveProgress(kpiIndex){
   setStatus('Saving…','saving');
-  const rows=ME.kpis.map((k,i)=>({leaderId:ME.id,leaderName:ME.name,kpiIndex:i,kpiLabel:k.label,kpiType:k.kpiType,progress:k.progress,status:k.status}));
+  const k = ME.kpis[kpiIndex];
+  const row = {leaderId:ME.id, leaderName:ME.name, kpiIndex, kpiLabel:k.label, kpiType:k.kpiType, progress:k.progress, status:k.status};
   try{
-    await saveKpiRows(YEAR, PERIOD, rows, SESSION.displayName);
+    await saveKpiRows(YEAR, PERIOD, [row], SESSION.displayName);
     setStatus('✓ Saved','saved'); setTimeout(()=>setStatus('',''),1500);
   }catch(e){ console.error(e); setStatus('Save failed','error'); }
 }
@@ -204,7 +205,7 @@ async function updateKpi(ki){
   const k=ME.kpis[ki];
   k.progress=parseInt(document.getElementById('range-'+nid).value);
   k.status=statusFromProgress(k.progress);
-  await saveProgress();
+  await saveProgress(ki);
   render();
 }
 
@@ -217,7 +218,7 @@ async function logMiss(ki){
   const k=ME.kpis[ki];
   k.progress=Math.max(0,k.progress-ded);
   k.status=statusFromProgress(k.progress);
-  await saveProgress();
+  await saveProgress(ki);
   render();
 }
 </script>

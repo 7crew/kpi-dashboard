@@ -111,6 +111,14 @@ async function loadLeaderKpisWithFallback(year, leaderId){
       await db.collection('leaders').doc(leaderId).update({ kpis: firebase.firestore.FieldValue.delete() });
       return { kpis: legacyKpis, sourceYear: null };
     }
+    // Final safety net: the original 2026 KPI text is also permanently kept in the
+    // app's own code (SEED_LEADERS), independent of whatever state Firestore is in —
+    // so even if the Firestore copy was ever overwritten, this can't truly be lost.
+    const seedMatch = SEED_LEADERS.find(l=>l.id===leaderId);
+    if(seedMatch && seedMatch.kpis && seedMatch.kpis.length){
+      await saveLeaderKpisForYear(year, leaderId, seedMatch.kpis);
+      return { kpis: seedMatch.kpis, sourceYear: null };
+    }
   }
 
   return { kpis: [], sourceYear: null };

@@ -64,7 +64,7 @@ select.kstatus{font-family:'DM Mono',monospace;font-size:10.5px;padding:5px 8px;
 </header>
 <main>
   <div class="ebitda-mini">
-    <div><div class="lbl">Company EBITDA Progress</div><div class="big" id="ePct">10%</div></div>
+    <div><div class="lbl">Company EBITDA Progress</div><div class="big" id="ePct">10%</div><div id="eAmountSub" style="font-family:'DM Mono',monospace;font-size:9.5px;color:var(--muted);margin-top:2px"></div></div>
     <div style="font-size:11px;color:var(--muted);max-width:340px">This is a shared company-wide goal (70% of your annual bonus) — it's set by leadership and shown here for reference.</div>
   </div>
   <div class="section-title">My KPI Goals</div>
@@ -74,7 +74,7 @@ select.kstatus{font-family:'DM Mono',monospace;font-size:10.5px;padding:5px 8px;
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=10"></script>
+<script src="shared.js?v=12"></script>
 <script>
 let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ME=null, ebitdaPct=10;
 
@@ -105,8 +105,12 @@ async function loadAll(){
       k.status=statusFromProgress(k.progress);
       k.carriedFrom=row.carriedFrom||null;
     });
-    ebitdaPct = await getEbitda(YEAR, PERIOD);
+    const ebitdaResult = await getEbitdaCarried(YEAR, PERIOD);
+    ebitdaPct = ebitdaResult.value;
     document.getElementById('ePct').textContent=ebitdaPct+'%';
+    document.getElementById('eAmountSub').textContent = ebitdaResult.amount!=null
+      ? (fmtMoney(ebitdaResult.amount)+' of '+fmtMoney(EBITDA_TARGET))
+      : '';
     setStatus('','');
   }catch(e){ console.error(e); setStatus('Load failed','error'); }
 }

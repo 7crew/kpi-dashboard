@@ -60,7 +60,7 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
 
 <div class="score-strip">
   <div class="score-box"><div class="num" id="scoreIndiv">—</div><div class="lbl">Individual KPI Avg</div></div>
-  <div class="score-box"><div class="num" id="scoreEbitda">—</div><div class="lbl">Company EBITDA</div></div>
+  <div class="score-box"><div class="num" id="scoreEbitda">—</div><div class="lbl">Company EBITDA</div><div id="scoreEbitdaAmount" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:3px"></div></div>
   <div class="score-box"><div class="num" id="scoreBlend">—</div><div class="lbl">Blended Bonus Score</div></div>
 </div>
 
@@ -74,7 +74,7 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=10"></script>
+<script src="shared.js?v=12"></script>
 <script>
 (async function(){
   const SESSION = await requireSession('admin');
@@ -98,12 +98,13 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
 
   if(period){
     // ── SINGLE QUARTER REPORT ──
-    const [rows, notes, misses, ebitdaPct] = await Promise.all([
+    const [rows, notes, misses, ebitdaResult] = await Promise.all([
       loadKpiDataCarried(year, period, lid),
       loadNotes(year, period, lid),
       loadMisses(year, period, lid),
-      getEbitda(year, period)
+      getEbitdaCarried(year, period)
     ]);
+    const ebitdaPct = ebitdaResult.value;
 
     l.kpis.forEach(k=>{k.progress=defaultProgress(k.kpiType);k.status=statusFromProgress(k.progress);});
     rows.forEach(row=>{
@@ -114,6 +115,7 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
     const blend = blended(indivAvg, ebitdaPct);
     document.getElementById('scoreIndiv').textContent = indivAvg+'%';
     document.getElementById('scoreEbitda').textContent = ebitdaPct+'%';
+    document.getElementById('scoreEbitdaAmount').textContent = ebitdaResult.amount!=null ? (fmtMoney(ebitdaResult.amount)+' of '+fmtMoney(EBITDA_TARGET)) : '';
     document.getElementById('scoreBlend').textContent = blend+'%';
 
     document.getElementById('kpiBlocks').innerHTML = l.kpis.map((k,i)=>{

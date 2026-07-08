@@ -199,14 +199,14 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
       <div class="e-stat">
         <span class="lbl">Current Progress</span>
         <div class="big" id="ePct">10%</div>
-        <div class="sub">of annual EBITDA target</div>
+        <div class="sub" id="eAmountSub">of annual EBITDA target</div>
         <div class="ebitda-input-row">
           <span class="ebitda-input-prefix">$</span>
           <input type="number" id="ebitdaDirectInput" min="0" placeholder="YTD amount" class="ebitda-direct-input" onkeydown="if(event.key==='Enter')setEbitdaDirect()">
           <button class="ebitda-set-btn" onclick="setEbitdaDirect()">Update</button>
         </div>
       </div>
-      <div class="e-stat"><span class="lbl">Status</span><div class="big" id="eStat" style="font-size:20px;color:var(--muted)">Early Stage</div><div class="sub">Active this fiscal year</div></div>
+      <div class="e-stat"><span class="lbl">Status</span><div class="big" id="eStat" style="font-size:20px;color:var(--muted)">Early Stage</div><div class="sub">Active this fiscal year</div><div id="eCarriedNote" style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px"></div></div>
     </div>
     <div class="e-track"><div class="e-fill" id="eBar" style="width:10%"></div><span class="e-pct-label" id="eBarLabel">10%</span></div>
   </div>
@@ -323,9 +323,9 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=10"></script>
+<script src="shared.js?v=12"></script>
 <script>
-let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=10;
+let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=10, ebitdaAmount=null, ebitdaCarriedFrom=null;
 
 (async function init(){
   SESSION = await requireSession('admin');
@@ -372,7 +372,10 @@ async function loadAll(){
       k.status=statusFromProgress(k.progress);
       k.carriedFrom=row.carriedFrom||null;
     });
-    ebitdaPct = await getEbitda(YEAR, PERIOD);
+    const ebitdaResult = await getEbitdaCarried(YEAR, PERIOD);
+    ebitdaPct = ebitdaResult.value;
+    ebitdaAmount = ebitdaResult.amount;
+    ebitdaCarriedFrom = ebitdaResult.carriedFrom;
     updateEbitdaUI();
     setStatus('✓ Loaded','saved'); setTimeout(()=>setStatus('',''),1200);
   }catch(e){ console.error(e); setStatus('Load failed','error'); }
@@ -397,18 +400,24 @@ function updateEbitdaUI(){
   document.getElementById('ePct').textContent=ebitdaPct+'%';
   document.getElementById('eBarLabel').textContent=ebitdaPct+'%';
   document.getElementById('eStat').textContent=eStatus(ebitdaPct);
+  document.getElementById('eAmountSub').textContent = ebitdaAmount!=null
+    ? (fmtMoney(ebitdaAmount)+' of '+fmtMoney(EBITDA_TARGET)+' target')
+    : 'of annual EBITDA target';
+  const noteEl=document.getElementById('eCarriedNote');
+  if(noteEl) noteEl.textContent = ebitdaCarriedFrom ? ('↳ carried forward from '+ebitdaCarriedFrom+' — not yet updated this quarter') : '';
 }
 
 async function setEbitdaDirect(){
-  const EBITDA_TARGET=24544113;
   const input=document.getElementById('ebitdaDirectInput');
   const ytd=parseFloat(input.value);
   if(isNaN(ytd)||ytd<0){ input.style.borderColor='var(--accent)'; input.focus(); return; }
   input.style.borderColor='';
   ebitdaPct=Math.min(100,Math.round((ytd/EBITDA_TARGET)*100));
+  ebitdaAmount=ytd;
+  ebitdaCarriedFrom=null;
   updateEbitdaUI(); renderSummary();
   setStatus('Saving…','saving');
-  await setEbitda(YEAR, PERIOD, ebitdaPct);
+  await setEbitda(YEAR, PERIOD, ebitdaPct, ytd);
   setStatus('✓ Saved','saved'); setTimeout(()=>setStatus('',''),1800);
   input.value='';
 }

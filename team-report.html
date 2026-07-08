@@ -64,7 +64,7 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);font-
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=10"></script>
+<script src="shared.js?v=12"></script>
 <script>
 (async function(){
   const SESSION = await requireSession('admin');
@@ -81,7 +81,9 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);font-
   const fillColor = s => ({complete:'#12a06e','on-track':'#12a06e','at-risk':'#c97b00',behind:'#cd2128','not-started':'#d0d3da'}[s]||'#d0d3da');
   const pillStyle = s => ({complete:'background:#12a06e;color:#fff','on-track':'background:#d1ecf1;color:#0c5460','at-risk':'background:#fff3cd;color:#856404',behind:'background:#f8d7da;color:#721c24','not-started':'background:#f0f0f0;color:#888'}[s]||'');
 
-  const ebitdaPct = await getEbitda(year, period);
+  const ebitdaResultForTeam = await getEbitdaCarried(year, period);
+  const ebitdaPct = ebitdaResultForTeam.value;
+  const ebitdaAmountText = ebitdaResultForTeam.amount!=null ? (fmtMoney(ebitdaResultForTeam.amount)+' of '+fmtMoney(EBITDA_TARGET)) : '';
   const sections = [];
 
   for(const l of LEADERS){
@@ -128,7 +130,7 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);font-
       <div class="leader-hero"><h1>${escHtml(l.name)}</h1><div class="role">${escHtml(l.title)}</div></div>
       <div class="score-strip">
         <div class="score-box"><div class="num">${indivAvg}%</div><div class="lbl">Individual KPI Avg</div></div>
-        <div class="score-box"><div class="num">${ebitdaPct}%</div><div class="lbl">Company EBITDA</div></div>
+        <div class="score-box"><div class="num">${ebitdaPct}%</div><div class="lbl">Company EBITDA</div><div style="font-family:'DM Mono',monospace;font-size:8.5px;color:var(--muted);margin-top:3px">${ebitdaAmountText}</div></div>
         <div class="score-box"><div class="num">${blend}%</div><div class="lbl">Blended Bonus Score</div></div>
       </div>
       ${kpiHtml}

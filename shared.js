@@ -100,6 +100,7 @@ const blended=(indivAvg,ebitdaPct)=>Math.round(indivAvg*0.3+ebitdaPct*0.7);
 const pColor=p=>p>=70?'#12a06e':p>=40?'var(--amber)':'var(--accent)';
 const eStatus=p=>p>=100?'Complete':p>=75?'On Track':p>=40?'In Progress':p>0?'Early Stage':'Not Started';
 const currentYear=()=>new Date().getFullYear();
+const fmtMoney=n=>n==null?null:'$'+Math.round(n).toLocaleString('en-US');
 function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── AUTH ──
@@ -248,8 +249,34 @@ async function getEbitda(year, period){
   return doc.exists ? Number(doc.data().ebitda) : 10;
 }
 
-async function setEbitda(year, period, ebitda){
-  await db.collection('settings').doc(String(year)+'_'+period).set({ ebitda });
+// Same idea as loadKpiDataCarried: if this quarter has no explicit EBITDA value saved
+// yet, fall back to the most recent prior quarter's value instead of resetting to 10%.
+const EBITDA_TARGET = 24544113;
+
+async function getEbitdaCarried(year, period){
+  const doc = await db.collection('settings').doc(String(year)+'_'+period).get();
+  if(doc.exists){
+    const d=doc.data();
+    return { value: Number(d.ebitda), amount: d.ytdAmount!=null?Number(d.ytdAmount):null, carriedFrom: null };
+  }
+  const periodIdx = PERIODS.indexOf(period);
+  for(let i=periodIdx-1; i>=0; i--){
+    const priorDoc = await db.collection('settings').doc(String(year)+'_'+PERIODS[i]).get();
+    if(priorDoc.exists){
+      const d=priorDoc.data();
+      return { value: Number(d.ebitda), amount: d.ytdAmount!=null?Number(d.ytdAmount):null, carriedFrom: PERIODS[i] };
+    }
+  }
+  return { value: 10, amount: null, carriedFrom: null };
+}
+
+// ytdAmount is optional — pass it whenever you have the real dollar figure (from the
+// $ input), omit it when only the slider was used, so it doesn't get overwritten with
+// nothing when a percentage-only edit happens.
+async function setEbitda(year, period, ebitda, ytdAmount){
+  const data = { ebitda };
+  if(ytdAmount != null) data.ytdAmount = ytdAmount;
+  await db.collection('settings').doc(String(year)+'_'+period).set(data, {merge:true});
 }
 
 // ── ONE-TIME MIGRATION ──

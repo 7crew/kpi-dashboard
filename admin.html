@@ -64,7 +64,7 @@ main{padding:24px 36px;max-width:1500px;margin:0 auto}
 .ktrack{flex:1;height:5px;background:var(--border2);border-radius:3px;overflow:hidden}
 .kfill{height:100%;border-radius:3px;transition:width .5s}
 .kbadge{font-family:'DM Mono',monospace;font-size:9.5px;font-weight:500;padding:2px 9px;border-radius:10px;white-space:nowrap;flex-shrink:0;min-width:118px;text-align:center}
-.s-complete{background:#d4edda;color:#1a6630}
+.s-complete{background:#12a06e;color:#fff;font-weight:600}
 .s-on-track{background:#d1ecf1;color:#0c5460}
 .s-at-risk{background:#fff3cd;color:#856404}
 .s-behind{background:#f8d7da;color:#721c24}
@@ -123,9 +123,16 @@ main{padding:24px 36px;max-width:1500px;margin:0 auto}
 .miss-item b{color:var(--accent)}
 footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);background:var(--surface);margin-top:40px}
 @media(max-width:900px){.ebitda-top{grid-template-columns:1fr 1fr}}
+@media print{
+  .notes-thread,.miss-log,.kdesc{max-height:none !important;overflow:visible !important}
+  .notes-add-row,.krow-actions,.card-btn-row,.hdr-right,header .hdr-btn,.modal-ov{display:none !important}
+  .leader-card{break-inside:avoid;page-break-inside:avoid}
+  .krow{break-inside:avoid;page-break-inside:avoid}
+  body{background:#fff}
+}
 .lavg-status-pill{display:inline-block;padding:4px 10px;border-radius:20px;font-family:'DM Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
 .lavg-pct{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:right;margin-top:4px}
-.card-btn-row{display:flex;gap:6px;margin-top:7px}
+.card-btn-row{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
 .card-update-btn{flex:1;padding:6px 10px;font-family:'DM Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:.5px;border:1.5px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;transition:all .15s;white-space:nowrap}
 .card-update-btn:hover{background:var(--accent);color:#fff}
 .card-report-btn{flex:1;padding:6px 10px;font-family:'DM Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:.5px;border:1.5px solid var(--border2);border-radius:6px;background:transparent;color:var(--subtext);cursor:pointer;transition:all .15s;white-space:nowrap}
@@ -147,6 +154,17 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
 .notes-role-sel{font-family:'DM Mono',monospace;font-size:10px;padding:6px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2)}
 .notes-btn{padding:8px 14px;font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.3px;border:none;cursor:pointer;border-radius:6px;background:var(--accent);color:#fff;transition:background .15s;white-space:nowrap}
 .notes-btn:hover{background:#a81a1f}
+.lm-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
+.lm-row.inactive{opacity:.55;background:var(--surface2)}
+.lm-name{font-weight:600;font-size:12.5px}
+.lm-title{font-family:'DM Mono',monospace;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.lm-actions{display:flex;gap:6px}
+.lm-btn{padding:5px 11px;font-family:'DM Mono',monospace;font-size:9.5px;border-radius:6px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--subtext);cursor:pointer}
+.lm-btn:hover{border-color:var(--blue);color:var(--blue)}
+.lm-btn.danger:hover{border-color:var(--accent);color:var(--accent)}
+.kpi-field-block{border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)}
+.kpi-field-block input[type=text],.kpi-field-block select{margin-bottom:8px}
+.kpi-field-block .kpi-field-lbl{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -161,8 +179,13 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
     <span class="save-status" id="saveStatus"></span>
     <span class="period-label">Year</span>
     <select class="hdr-select" id="yearSel" onchange="changeYear()"></select>
+    <span class="period-label">Quarter</span>
+    <select class="hdr-select" id="periodSel" onchange="changePeriod()">
+      <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
+    </select>
+    <button class="hdr-btn" onclick="openManageLeaders()">&#128101; Manage Leaders</button>
     <button class="hdr-btn" onclick="logout()">Log Out</button>
-    <button class="hdr-btn" onclick="window.print()">⬇ Export</button>
+    <button class="hdr-btn" onclick="exportFullDashboard()">⬇ Export</button>
   </div>
 </header>
 
@@ -226,11 +249,8 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
         <div class="mfield"><label>Progress % — <span id="mRangeVal">0</span>%</label>
           <div class="range-row"><input type="range" id="mRange" min="0" max="100" value="0"><span class="rval" id="mRangeDisp">0%</span></div>
         </div>
-        <div class="mfield"><label>Status</label>
-          <select id="mStatus">
-            <option value="not-started">Not Started</option><option value="on-track">On Track</option>
-            <option value="at-risk">At Risk</option><option value="behind">Behind</option><option value="complete">Complete</option>
-          </select>
+        <div class="mfield"><label>Status (calculated automatically from progress)</label>
+          <span class="kbadge" id="mStatusPreview" style="font-size:11px;padding:6px 14px;display:inline-block"></span>
         </div>
       </div>
 
@@ -263,12 +283,41 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
   </div>
 </div>
 
+<!-- MANAGE LEADERS MODAL -->
+<div class="modal-ov" id="leadersModal">
+  <div class="modal" style="width:640px">
+    <div class="modal-hd"><div class="modal-hd-title">Manage Leaders</div><button class="modal-x" onclick="closeLeadersModal()">×</button></div>
+    <div class="modal-body">
+      <div id="leadersListView">
+        <div id="leadersList"></div>
+        <button class="mbtn mbtn-primary" style="margin-top:14px;width:100%" onclick="openLeaderForm(null)">+ Add New Leader</button>
+      </div>
+      <div id="leaderFormView" style="display:none">
+        <input type="hidden" id="lfOriginalId">
+        <div class="mfield"><label>Full Name</label><input type="text" id="lfName" placeholder="e.g. Jamie Rivera" oninput="if(!document.getElementById('lfOriginalId').value) document.getElementById('lfIdPreview').textContent='ID: '+slugify(this.value||'')"></div>
+        <div class="mfield"><label>Title</label><input type="text" id="lfTitle" placeholder="e.g. VP of Marketing"></div>
+        <div style="font-family:'DM Mono',monospace;font-size:9.5px;color:var(--muted);margin-bottom:12px" id="lfIdPreview"></div>
+        <hr class="mdiv">
+        <div class="mfield"><label>KPIs</label>
+          <div id="lfKpiList"></div>
+          <button class="mbtn mbtn-sec" style="margin-top:8px" onclick="addKpiField()">+ Add KPI</button>
+          <div style="font-size:10px;color:var(--muted);margin-top:8px">Existing KPIs can be reworded and retyped, but not deleted or reordered — that would break the link to any historical notes/scores already saved against them.</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-ft" id="leaderFormFooter" style="display:none">
+      <button class="mbtn mbtn-sec" onclick="backToLeadersList()">Cancel</button>
+      <button class="mbtn mbtn-primary" onclick="saveLeaderForm()">Save Leader</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="shared.js"></script>
 <script>
-let SESSION=null, YEAR=currentYear(), ebitdaPct=10;
+let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=10;
 
 (async function init(){
   SESSION = await requireSession('admin');
@@ -278,22 +327,33 @@ let SESSION=null, YEAR=currentYear(), ebitdaPct=10;
   const thisYear=currentYear();
   for(let y=thisYear-3;y<=thisYear+1;y++) ySel.innerHTML+=`<option value="${y}" ${y===thisYear?'selected':''}>${y}</option>`;
   YEAR=thisYear;
+  document.getElementById('periodSel').value = PERIOD;
   const fmt=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   document.getElementById('footerDate').textContent='Generated '+fmt;
-  document.getElementById('mRange').addEventListener('input',function(){document.getElementById('mRangeVal').textContent=this.value;document.getElementById('mRangeDisp').textContent=this.value+'%';});
+  document.getElementById('mRange').addEventListener('input',function(){document.getElementById('mRangeVal').textContent=this.value;document.getElementById('mRangeDisp').textContent=this.value+'%';updateStatusPreview(parseInt(this.value));});
   document.getElementById('mEbitda').addEventListener('input',function(){document.getElementById('mEbitdaVal').textContent=this.value;document.getElementById('mEbitdaDisp').textContent=this.value+'%';});
+  await loadLeaders();
   await loadAll();
   renderCards(); renderSummary();
 })();
 
+function updateStatusPreview(progress){
+  const s = statusFromProgress(progress);
+  const el = document.getElementById('mStatusPreview');
+  el.className = 'kbadge ' + sClass(s);
+  el.textContent = sLabel(s);
+  el.style.fontSize='11px'; el.style.padding='6px 14px'; el.style.display='inline-block';
+}
+
 function setStatus(msg,cls){ const el=document.getElementById('saveStatus'); el.textContent=msg; el.className='save-status '+cls; }
 
 function changeYear(){ YEAR=parseInt(document.getElementById('yearSel').value); loadAll().then(()=>{renderCards();renderSummary();}); }
+function changePeriod(){ PERIOD=document.getElementById('periodSel').value; loadAll().then(()=>{renderCards();renderSummary();}); }
 
 async function loadAll(){
   setStatus('Loading…','saving');
   try{
-    const rows = await loadKpiData(YEAR);
+    const rows = await loadKpiData(YEAR, PERIOD);
     LEADERS.forEach(l=>l.kpis.forEach(k=>{ k.progress=0; k.status='not-started'; }));
     rows.forEach(row=>{
       const l=LEADERS.find(x=>x.id===row.leaderId);
@@ -301,9 +361,9 @@ async function loadAll(){
       const k=l.kpis[parseInt(row.kpiIndex)];
       if(!k) return;
       k.progress=parseInt(row.progress)||0;
-      k.status=row.status||'not-started';
+      k.status=statusFromProgress(k.progress);
     });
-    ebitdaPct = await getEbitda(YEAR);
+    ebitdaPct = await getEbitda(YEAR, PERIOD);
     updateEbitdaUI();
     setStatus('✓ Loaded','saved'); setTimeout(()=>setStatus('',''),1200);
   }catch(e){ console.error(e); setStatus('Load failed','error'); }
@@ -316,7 +376,7 @@ async function persistAll(){
     rows.push({leaderId:l.id,leaderName:l.name,kpiIndex:i,kpiLabel:k.label,kpiType:k.kpiType,progress:k.progress,status:k.status});
   }));
   try{
-    await saveKpiRows(YEAR, rows, SESSION.displayName);
+    await saveKpiRows(YEAR, PERIOD, rows, SESSION.displayName);
     setStatus('✓ Saved','saved'); setTimeout(()=>setStatus('',''),1800);
   }catch(e){ console.error(e); setStatus('Save failed','error'); }
 }
@@ -337,7 +397,7 @@ async function setEbitdaDirect(){
   ebitdaPct=Math.min(100,Math.round((ytd/EBITDA_TARGET)*100));
   updateEbitdaUI(); renderSummary();
   setStatus('Saving…','saving');
-  await setEbitda(YEAR, ebitdaPct);
+  await setEbitda(YEAR, PERIOD, ebitdaPct);
   setStatus('✓ Saved','saved'); setTimeout(()=>setStatus('',''),1800);
   input.value='';
 }
@@ -351,7 +411,8 @@ function renderCards(){
       <div class="lavg-block"><div class="lavg-status-pill ${statusCls}">${statusLabel}</div><div class="lavg-pct">${a}% avg</div>
         <div class="card-btn-row">
           <button class="card-update-btn" onclick="openModal('${l.id}')">&#9998; Update</button>
-          <button class="card-report-btn" onclick="openReport('${l.id}')">&#128196; Report</button>
+          <button class="card-report-btn" onclick="openReport('${l.id}',true)">&#128196; ${PERIOD} Report</button>
+          <button class="card-report-btn" onclick="openReport('${l.id}',false)">&#128200; Full Year</button>
         </div>
       </div></div>
       <div class="leader-kpis">${l.kpis.map((k,i)=>{
@@ -408,7 +469,7 @@ async function toggleKpiNotes(lid,ki){
   body.style.display=open?'none':'block';
   tog.innerHTML=open?'&#9658; Notes':'&#9660; Notes';
   if(!open){
-    const notes = await loadNotes(YEAR, lid);
+    const notes = await loadNotes(YEAR, PERIOD, lid);
     const notesForKpi=notes.filter(n=>parseInt(n.kpiIndex)===ki);
     const thread=document.getElementById('notes-thread-'+nid);
     if(!notesForKpi.length){ thread.innerHTML='<div style="font-size:10px;color:var(--muted)">No notes yet.</div>'; return; }
@@ -426,7 +487,7 @@ async function addNote(lid,ki){
   const role=document.getElementById('note-role-'+nid).value;
   const text=ta.value.trim();
   if(!text) return;
-  await saveNote(YEAR, lid, ki, role, SESSION.displayName, text);
+  await saveNote(YEAR, PERIOD, lid, ki, role, SESSION.displayName, text);
   ta.value='';
   toggleKpiNotes(lid,ki);
   setTimeout(()=>toggleKpiNotes(lid,ki),150);
@@ -457,7 +518,7 @@ function populateKpiSel(){
       document.getElementById('percentageControls').style.display='none';
       document.getElementById('complianceControls').style.display='block';
       document.getElementById('complianceScore').textContent=k.progress+'%';
-      const misses = (await loadMisses(YEAR, lid)).filter(m=>parseInt(m.kpiIndex)===ki);
+      const misses = (await loadMisses(YEAR, PERIOD, lid)).filter(m=>parseInt(m.kpiIndex)===ki);
       const log=document.getElementById('missLog');
       log.innerHTML=misses.length? misses.map(m=>{
         const d=new Date(m.date).toLocaleDateString('en-US',{month:'short',day:'numeric'});
@@ -469,7 +530,7 @@ function populateKpiSel(){
       document.getElementById('mRange').value=k.progress;
       document.getElementById('mRangeVal').textContent=k.progress;
       document.getElementById('mRangeDisp').textContent=k.progress+'%';
-      document.getElementById('mStatus').value=k.status;
+      updateStatusPreview(k.progress);
     }
   };
 }
@@ -482,7 +543,7 @@ async function logMiss(){
   if(!desc || isNaN(ded)){ return; }
   const l=LEADERS.find(x=>x.id===lid);
   const k=l.kpis[ki];
-  await saveMiss(YEAR, lid, ki, desc, ded, SESSION.displayName);
+  await saveMiss(YEAR, PERIOD, lid, ki, desc, ded, SESSION.displayName);
   k.progress=Math.max(0, k.progress - ded);
   k.status=statusFromProgress(k.progress);
   document.getElementById('complianceScore').textContent=k.progress+'%';
@@ -499,7 +560,7 @@ function applyEdit(){
     const k=l.kpis[ki];
     if(k.kpiType!=='compliance'){
       k.progress=parseInt(document.getElementById('mRange').value);
-      k.status=document.getElementById('mStatus').value;
+      k.status=statusFromProgress(k.progress);
     }
   }
   ebitdaPct=parseInt(document.getElementById('mEbitda').value);
@@ -507,11 +568,148 @@ function applyEdit(){
   renderCards();renderSummary();
   closeModal();
   persistAll();
-  setEbitda(YEAR, ebitdaPct);
+  setEbitda(YEAR, PERIOD, ebitdaPct);
 }
 
-function openReport(lid){
-  window.open('report.html?leader='+lid+'&year='+YEAR, '_blank');
+function openReport(lid, singleQuarter){
+  const url = singleQuarter
+    ? 'report.html?leader='+lid+'&year='+YEAR+'&period='+PERIOD
+    : 'report.html?leader='+lid+'&year='+YEAR;
+  window.open(url, '_blank');
+}
+
+// Fully expands every KPI's description + notes thread (loading real note content,
+// not just the collapsed toggle), so the printed/PDF export shows everything instead
+// of clipping whatever happened to be collapsed on screen.
+async function exportFullDashboard(){
+  setStatus('Preparing export…','saving');
+  const allNotesPromises = [];
+  LEADERS.forEach(l=>{
+    l.kpis.forEach((k,i)=>{
+      const nid=l.id+'-'+i;
+      const row=document.getElementById('krow-'+nid);
+      if(row && !row.classList.contains('expanded')){
+        row.classList.add('expanded');
+        const t=row.querySelector('.ktoggle');
+        if(t) t.textContent='▾ hide details';
+      }
+      const body=document.getElementById('kpi-notes-'+nid);
+      if(body) body.style.display='block';
+      allNotesPromises.push(
+        loadNotes(YEAR, PERIOD, l.id).then(notes=>{
+          const notesForKpi=notes.filter(n=>parseInt(n.kpiIndex)===i);
+          const thread=document.getElementById('notes-thread-'+nid);
+          if(!thread) return;
+          thread.innerHTML = notesForKpi.length ? notesForKpi.map(n=>{
+            const d=new Date(n.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+            return `<div class="note-entry role-${n.role}"><div class="note-meta"><span>${d}</span><span>${n.author}</span><span>${n.role==='ceo'?'CEO':'Leader'}</span></div>${escHtml(n.text)}</div>`;
+          }).join('') : '<div style="font-size:10px;color:var(--muted)">No notes yet.</div>';
+        })
+      );
+    });
+  });
+  await Promise.all(allNotesPromises);
+  setStatus('',''); 
+  window.print();
+}
+
+// ── MANAGE LEADERS ──
+async function openManageLeaders(){
+  document.getElementById('leadersModal').classList.add('open');
+  backToLeadersList();
+  await renderLeadersList();
+}
+function closeLeadersModal(){ document.getElementById('leadersModal').classList.remove('open'); }
+
+async function renderLeadersList(){
+  const all = await loadLeaders(true); // include inactive
+  const el = document.getElementById('leadersList');
+  el.innerHTML = all.map(l=>`
+    <div class="lm-row ${l.active===false?'inactive':''}">
+      <div><div class="lm-name">${escHtml(l.name)}${l.active===false?' <span style="color:var(--accent);font-size:9px">(inactive)</span>':''}</div><div class="lm-title">${escHtml(l.title)} · ${l.kpis.length} KPI${l.kpis.length===1?'':'s'}</div></div>
+      <div class="lm-actions">
+        <button class="lm-btn" onclick="openLeaderForm('${l.id}')">Edit</button>
+        <button class="lm-btn danger" onclick="toggleActive('${l.id}',${l.active===false})">${l.active===false?'Reactivate':'Deactivate'}</button>
+      </div>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:11px">No leaders yet.</div>';
+  await loadLeaders(); // refresh the active-only global list used everywhere else
+}
+
+async function toggleActive(id, makeActive){
+  await setLeaderActive(id, makeActive);
+  await renderLeadersList();
+  renderCards(); renderSummary();
+}
+
+function backToLeadersList(){
+  document.getElementById('leadersListView').style.display='block';
+  document.getElementById('leaderFormView').style.display='none';
+  document.getElementById('leaderFormFooter').style.display='none';
+}
+
+let editingLeader = null;
+async function openLeaderForm(id){
+  document.getElementById('leadersListView').style.display='none';
+  document.getElementById('leaderFormView').style.display='block';
+  document.getElementById('leaderFormFooter').style.display='flex';
+  document.getElementById('lfKpiList').innerHTML='';
+  document.getElementById('lfIdPreview').textContent='';
+
+  if(id){
+    const all = await loadLeaders(true);
+    editingLeader = all.find(l=>l.id===id);
+  } else {
+    editingLeader = null;
+  }
+
+  document.getElementById('lfOriginalId').value = id || '';
+  document.getElementById('lfName').value = editingLeader ? editingLeader.name : '';
+  document.getElementById('lfTitle').value = editingLeader ? editingLeader.title : '';
+
+  const kpis = editingLeader ? editingLeader.kpis : [];
+  kpis.forEach((k,i)=>addKpiField(k,true));
+  if(!kpis.length) addKpiField();
+}
+
+function addKpiField(existing, locked){
+  const wrap = document.getElementById('lfKpiList');
+  const idx = wrap.children.length;
+  const div = document.createElement('div');
+  div.className='kpi-field-block';
+  div.dataset.locked = locked ? '1':'0';
+  div.innerHTML = `
+    <div class="kpi-field-lbl">KPI #${idx+1}${locked?' — existing (safe to reword, cannot delete)':' — new'}</div>
+    <input type="text" class="kpi-label" placeholder="KPI label" value="${existing?escHtml(existing.label):''}">
+    <textarea class="kpi-desc notes-ta" placeholder="Full description / targets" style="width:100%">${existing?existing.desc:''}</textarea>
+    <select class="kpi-type" style="margin-top:8px">
+      <option value="percentage" ${(!existing||existing.kpiType==='percentage')?'selected':''}>Percentage (slider 0-100%)</option>
+      <option value="compliance" ${existing&&existing.kpiType==='compliance'?'selected':''}>Pass/Fail (starts at 100%, deducts per miss)</option>
+    </select>`;
+  wrap.appendChild(div);
+}
+
+async function saveLeaderForm(){
+  const name = document.getElementById('lfName').value.trim();
+  const title = document.getElementById('lfTitle').value.trim();
+  if(!name || !title){ alert('Name and title are required.'); return; }
+
+  const kpiBlocks = [...document.getElementById('lfKpiList').children];
+  const kpis = kpiBlocks.map(b=>({
+    label: b.querySelector('.kpi-label').value.trim() || 'Untitled KPI',
+    desc: b.querySelector('.kpi-desc').value.trim(),
+    kpiType: b.querySelector('.kpi-type').value
+  }));
+  if(!kpis.length){ alert('Add at least one KPI.'); return; }
+
+  const originalId = document.getElementById('lfOriginalId').value;
+  const id = originalId || slugify(name);
+  const order = editingLeader ? editingLeader.order : LEADERS.length + 100;
+
+  await saveLeaderProfile({ id, name, title, active:true, order, kpis });
+  await loadLeaders();
+  await renderLeadersList();
+  backToLeadersList();
+  renderCards(); renderSummary();
 }
 </script>
 </body>

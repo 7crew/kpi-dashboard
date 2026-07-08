@@ -37,6 +37,8 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
 @media print{
   .toolbar{display:none}
   body{padding:0}
+  .notes-section,.kpi-block{max-height:none !important;overflow:visible !important}
+  .kpi-block{break-inside:avoid;page-break-inside:avoid}
 }
 </style>
 </head>
@@ -78,61 +80,123 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
   const SESSION = await requireSession('admin');
   if(!SESSION) return;
 
+  await loadLeaders(true);
   const params=new URLSearchParams(location.search);
   const lid=params.get('leader');
   const year=params.get('year')||currentYear();
+  const period=params.get('period'); // if omitted, show full-year progression across all quarters
   const l=LEADERS.find(x=>x.id===lid);
   if(!l){ document.body.innerHTML='<p>Leader not found.</p>'; return; }
 
-  document.getElementById('docMeta').innerHTML = 'Fiscal Year '+year+'<br>Generated '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  document.getElementById('docMeta').innerHTML = (period?('Fiscal Year '+year+' · '+period):('Fiscal Year '+year+' · Full-Year Progression'))+'<br>Generated '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   document.getElementById('footerYear').textContent = '7 Crew Enterprises LLC · FY '+year;
   document.getElementById('leaderName').textContent = l.name;
   document.getElementById('leaderRole').textContent = l.title;
 
-  const [rows, notes, misses, ebitdaPct] = await Promise.all([
-    loadKpiData(year, lid),
-    loadNotes(year, lid),
-    loadMisses(year, lid),
-    getEbitda(year)
-  ]);
+  const fillColor = s => ({complete:'#12a06e','on-track':'#12a06e','at-risk':'#c97b00',behind:'#cd2128','not-started':'#d0d3da'}[s]||'#d0d3da');
+  const pillStyle = s => ({complete:'background:#12a06e;color:#fff','on-track':'background:#d1ecf1;color:#0c5460','at-risk':'background:#fff3cd;color:#856404',behind:'background:#f8d7da;color:#721c24','not-started':'background:#f0f0f0;color:#888'}[s]||'');
 
-  l.kpis.forEach(k=>{k.progress=0;k.status='not-started';});
-  rows.forEach(row=>{
-    const k=l.kpis[parseInt(row.kpiIndex)];
-    if(k){ k.progress=parseInt(row.progress)||0; k.status=row.status||'not-started'; }
+  if(period){
+    // ── SINGLE QUARTER REPORT ──
+    const [rows, notes, misses, ebitdaPct] = await Promise.all([
+      loadKpiData(year, period, lid),
+      loadNotes(year, period, lid),
+      loadMisses(year, period, lid),
+      getEbitda(year, period)
+    ]);
+
+    l.kpis.forEach(k=>{k.progress=0;k.status='not-started';});
+    rows.forEach(row=>{
+      const k=l.kpis[parseInt(row.kpiIndex)];
+      if(k){ k.progress=parseInt(row.progress)||0; k.status=statusFromProgress(k.progress); }
+    });
+    const indivAvg = avg(l.kpis);
+    const blend = blended(indivAvg, ebitdaPct);
+    document.getElementById('scoreIndiv').textContent = indivAvg+'%';
+    document.getElementById('scoreEbitda').textContent = ebitdaPct+'%';
+    document.getElementById('scoreBlend').textContent = blend+'%';
+
+    document.getElementById('kpiBlocks').innerHTML = l.kpis.map((k,i)=>{
+      const notesForKpi=notes.filter(n=>parseInt(n.kpiIndex)===i);
+      const missesForKpi=misses.filter(m=>parseInt(m.kpiIndex)===i);
+      let notesHtml='';
+      if(notesForKpi.length){
+        notesHtml += '<div class="notes-section">'+notesForKpi.map(n=>{
+          const d=new Date(n.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+          return `<div class="note-line"><b>${d} · ${n.role==='ceo'?'CEO':'Leader'}:</b> ${escHtml(n.text)}</div>`;
+        }).join('') + '</div>';
+      }
+      let missHtml='';
+      if(k.kpiType==='compliance' && missesForKpi.length){
+        missHtml = '<div class="notes-section">'+missesForKpi.map(m=>{
+          const d=new Date(m.date).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+          return `<div class="note-line"><b>${d} · -${m.deduction}pt:</b> ${escHtml(m.description)}</div>`;
+        }).join('')+'</div>';
+      }
+      return `<div class="kpi-block">
+        <h3>KPI #${i+1} — ${k.label}</h3>
+        <div class="desc">${k.desc}</div>
+        <div class="kpi-track"><div class="kpi-fill" style="width:${k.progress}%;background:${fillColor(k.status)}"></div></div>
+        <div class="kpi-score-row"><span class="pill" style="${pillStyle(k.status)}">${k.progress}% · ${sLabel(k.status)}</span></div>
+        ${missHtml}
+        ${notesHtml}
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  // ── FULL-YEAR PROGRESSION REPORT (no period specified) ──
+  const [allQ, notes, misses, e1, e2, e3, e4] = await Promise.all([
+    loadKpiDataAllQuarters(year, lid),
+    loadNotesYear(year, lid),
+    loadMissesYear(year, lid),
+    getEbitda(year,'Q1'), getEbitda(year,'Q2'), getEbitda(year,'Q3'), getEbitda(year,'Q4')
+  ]);
+  const ebitdaByQ = {Q1:e1,Q2:e2,Q3:e3,Q4:e4};
+  const latestEbitda = e4||e3||e2||e1||10;
+  const latestQProgress = {};
+  PERIODS.forEach(p=>{ latestQProgress[p] = {}; });
+  allQ.forEach(row=>{ latestQProgress[row.period] = latestQProgress[row.period]||{}; latestQProgress[row.period][row.kpiIndex] = row; });
+
+  const lastPopulatedQ = [...PERIODS].reverse().find(p=>Object.keys(latestQProgress[p]||{}).length) || 'Q4';
+  const lastRows = latestQProgress[lastPopulatedQ] || {};
+  l.kpis.forEach((k,i)=>{
+    const r = lastRows[i];
+    k.progress = r ? parseInt(r.progress)||0 : 0;
+    k.status = statusFromProgress(k.progress);
   });
   const indivAvg = avg(l.kpis);
-  const blend = blended(indivAvg, ebitdaPct);
-
+  const blend = blended(indivAvg, latestEbitda);
   document.getElementById('scoreIndiv').textContent = indivAvg+'%';
-  document.getElementById('scoreEbitda').textContent = ebitdaPct+'%';
+  document.getElementById('scoreEbitda').textContent = latestEbitda+'%';
   document.getElementById('scoreBlend').textContent = blend+'%';
 
-  const fillColor = s => ({complete:'#12a06e','on-track':'#12a06e','at-risk':'#c97b00',behind:'#cd2128','not-started':'#d0d3da'}[s]||'#d0d3da');
-  const pillStyle = s => ({complete:'background:#d4edda;color:#1a6630','on-track':'background:#d1ecf1;color:#0c5460','at-risk':'background:#fff3cd;color:#856404',behind:'background:#f8d7da;color:#721c24','not-started':'background:#f0f0f0;color:#888'}[s]||'');
-
   document.getElementById('kpiBlocks').innerHTML = l.kpis.map((k,i)=>{
+    const trend = PERIODS.map(p=>{
+      const r = latestQProgress[p] && latestQProgress[p][i];
+      const pct = r ? (parseInt(r.progress)||0) : null;
+      return `<div style="flex:1;text-align:center"><div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase">${p}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:${pct===null?'var(--muted)':fillColor(statusFromProgress(pct))}">${pct===null?'—':pct+'%'}</div></div>`;
+    }).join('');
     const notesForKpi=notes.filter(n=>parseInt(n.kpiIndex)===i);
     const missesForKpi=misses.filter(m=>parseInt(m.kpiIndex)===i);
     let notesHtml='';
     if(notesForKpi.length){
       notesHtml += '<div class="notes-section">'+notesForKpi.map(n=>{
         const d=new Date(n.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-        return `<div class="note-line"><b>${d} · ${n.role==='ceo'?'CEO':'Leader'}:</b> ${escHtml(n.text)}</div>`;
+        return `<div class="note-line"><b>${d} · ${n.period} · ${n.role==='ceo'?'CEO':'Leader'}:</b> ${escHtml(n.text)}</div>`;
       }).join('') + '</div>';
     }
     let missHtml='';
     if(k.kpiType==='compliance' && missesForKpi.length){
       missHtml = '<div class="notes-section">'+missesForKpi.map(m=>{
         const d=new Date(m.date).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-        return `<div class="note-line"><b>${d} · -${m.deduction}pt:</b> ${escHtml(m.description)}</div>`;
+        return `<div class="note-line"><b>${d} · ${m.period} · -${m.deduction}pt:</b> ${escHtml(m.description)}</div>`;
       }).join('')+'</div>';
     }
     return `<div class="kpi-block">
       <h3>KPI #${i+1} — ${k.label}</h3>
       <div class="desc">${k.desc}</div>
-      <div class="kpi-track"><div class="kpi-fill" style="width:${k.progress}%;background:${fillColor(k.status)}"></div></div>
-      <div class="kpi-score-row"><span class="pill" style="${pillStyle(k.status)}">${k.progress}% · ${sLabel(k.status)}</span></div>
+      <div style="display:flex;gap:6px;background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:12px">${trend}</div>
       ${missHtml}
       ${notesHtml}
     </div>`;

@@ -28,7 +28,7 @@ main{padding:24px 36px;max-width:900px;margin:0 auto}
 .f-behind{background:var(--accent)}
 .f-not-started{background:var(--border2)}
 .kbadge{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;padding:2px 9px;border-radius:10px}
-.s-complete{background:#d4edda;color:#1a6630}.s-on-track{background:#d1ecf1;color:#0c5460}.s-at-risk{background:#fff3cd;color:#856404}.s-behind{background:#f8d7da;color:#721c24}.s-not-started{background:#f0f0f0;color:#888}
+.s-complete{background:#12a06e;color:#fff;font-weight:600}.s-on-track{background:#d1ecf1;color:#0c5460}.s-at-risk{background:#fff3cd;color:#856404}.s-behind{background:#f8d7da;color:#721c24}.s-not-started{background:#f0f0f0;color:#888}
 .kdesc{font-size:11.5px;color:var(--muted);line-height:1.6;margin:8px 0;border-left:2px solid var(--border2);padding-left:8px}
 .update-row{display:flex;align-items:center;gap:10px;margin-top:10px}
 .update-row input[type=range]{flex:1;accent-color:var(--accent)}
@@ -56,6 +56,9 @@ select.kstatus{font-family:'DM Mono',monospace;font-size:10.5px;padding:5px 8px;
   <div><div class="hdr-title">MY KPI PROGRESS</div><div class="hdr-sub" id="whoami"></div></div>
   <div style="display:flex;align-items:center;gap:10px">
     <span class="save-status" id="saveStatus"></span>
+    <select class="hdr-btn" id="periodSel" onchange="changePeriod()" style="cursor:pointer">
+      <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
+    </select>
     <button class="hdr-btn" onclick="logout()">Log Out</button>
   </div>
 </header>
@@ -73,32 +76,35 @@ select.kstatus{font-family:'DM Mono',monospace;font-size:10.5px;padding:5px 8px;
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="shared.js"></script>
 <script>
-let SESSION=null, YEAR=currentYear(), ME=null, ebitdaPct=10;
+let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ME=null, ebitdaPct=10;
 
 (async function init(){
   SESSION = await requireSession('leader');
   if(!SESSION) return;
+  await loadLeaders();
   ME = LEADERS.find(l=>l.id===SESSION.leaderId);
   if(!ME){ document.body.innerHTML='<p style="padding:40px">No leader profile matched — contact an admin.</p>'; return; }
   document.getElementById('whoami').textContent = SESSION.displayName + ' · ' + ME.title;
+  document.getElementById('periodSel').value = PERIOD;
   await loadAll();
   render();
 })();
 
 function setStatus(msg,cls){ const el=document.getElementById('saveStatus'); el.textContent=msg; el.className='save-status '+cls; }
+function changePeriod(){ PERIOD=document.getElementById('periodSel').value; loadAll().then(render); }
 
 async function loadAll(){
   setStatus('Loading…','saving');
   try{
-    const rows = await loadKpiData(YEAR, ME.id);
+    const rows = await loadKpiData(YEAR, PERIOD, ME.id);
     ME.kpis.forEach(k=>{k.progress=0;k.status='not-started';});
     rows.forEach(row=>{
       const k=ME.kpis[parseInt(row.kpiIndex)];
       if(!k) return;
       k.progress=parseInt(row.progress)||0;
-      k.status=row.status||'not-started';
+      k.status=statusFromProgress(k.progress);
     });
-    ebitdaPct = await getEbitda(YEAR);
+    ebitdaPct = await getEbitda(YEAR, PERIOD);
     document.getElementById('ePct').textContent=ebitdaPct+'%';
     setStatus('','');
   }catch(e){ console.error(e); setStatus('Load failed','error'); }
@@ -108,7 +114,7 @@ async function saveProgress(){
   setStatus('Saving…','saving');
   const rows=ME.kpis.map((k,i)=>({leaderId:ME.id,leaderName:ME.name,kpiIndex:i,kpiLabel:k.label,kpiType:k.kpiType,progress:k.progress,status:k.status}));
   try{
-    await saveKpiRows(YEAR, rows, SESSION.displayName);
+    await saveKpiRows(YEAR, PERIOD, rows, SESSION.displayName);
     setStatus('✓ Saved','saved'); setTimeout(()=>setStatus('',''),1500);
   }catch(e){ console.error(e); setStatus('Save failed','error'); }
 }
@@ -141,15 +147,9 @@ function render(){
         <span class="kbadge s-${k.status}">${k.progress}% · ${sLabel(k.status)}</span>
       </div>
       <div class="update-row">
-        <input type="range" min="0" max="100" value="${k.progress}" id="range-${nid}" oninput="document.getElementById('rangeval-${nid}').textContent=this.value+'%'">
+        <input type="range" min="0" max="100" value="${k.progress}" id="range-${nid}" oninput="document.getElementById('rangeval-${nid}').textContent=this.value+'%';document.getElementById('statuspreview-${nid}').className='kbadge '+sClass(statusFromProgress(parseInt(this.value)));document.getElementById('statuspreview-${nid}').textContent=sLabel(statusFromProgress(parseInt(this.value)));">
         <span id="rangeval-${nid}">${k.progress}%</span>
-        <select class="kstatus" id="status-${nid}">
-          <option value="not-started" ${k.status==='not-started'?'selected':''}>Not Started</option>
-          <option value="on-track" ${k.status==='on-track'?'selected':''}>On Track</option>
-          <option value="at-risk" ${k.status==='at-risk'?'selected':''}>At Risk</option>
-          <option value="behind" ${k.status==='behind'?'selected':''}>Behind</option>
-          <option value="complete" ${k.status==='complete'?'selected':''}>Complete</option>
-        </select>
+        <span class="kbadge ${sClass(k.status)}" id="statuspreview-${nid}" style="font-size:10px">${sLabel(k.status)}</span>
         <button class="save-mini" onclick="updateKpi(${i})">Save</button>
       </div>
       ${notesBlock(i,nid)}
@@ -168,7 +168,7 @@ function notesBlock(i,nid){
 }
 
 async function loadNotesFor(ki,nid){
-  const notes = (await loadNotes(YEAR, ME.id)).filter(n=>parseInt(n.kpiIndex)===ki);
+  const notes = (await loadNotes(YEAR, PERIOD, ME.id)).filter(n=>parseInt(n.kpiIndex)===ki);
   const el=document.getElementById('notes-'+nid);
   if(!el) return;
   el.innerHTML = notes.length ? notes.map(n=>{
@@ -178,7 +178,7 @@ async function loadNotesFor(ki,nid){
 }
 
 async function loadMissesFor(ki,nid){
-  const misses = (await loadMisses(YEAR, ME.id)).filter(m=>parseInt(m.kpiIndex)===ki);
+  const misses = (await loadMisses(YEAR, PERIOD, ME.id)).filter(m=>parseInt(m.kpiIndex)===ki);
   const el=document.getElementById('misslog-'+nid);
   if(!el) return;
   el.innerHTML = misses.length ? misses.map(m=>{
@@ -192,7 +192,7 @@ async function addNote(ki){
   const ta=document.getElementById('noteinput-'+nid);
   const text=ta.value.trim();
   if(!text) return;
-  await saveNote(YEAR, ME.id, ki, 'leader', SESSION.displayName, text);
+  await saveNote(YEAR, PERIOD, ME.id, ki, 'leader', SESSION.displayName, text);
   ta.value='';
   loadNotesFor(ki,nid);
 }
@@ -201,7 +201,7 @@ async function updateKpi(ki){
   const nid='k'+ki;
   const k=ME.kpis[ki];
   k.progress=parseInt(document.getElementById('range-'+nid).value);
-  k.status=document.getElementById('status-'+nid).value;
+  k.status=statusFromProgress(k.progress);
   await saveProgress();
   render();
 }
@@ -211,7 +211,7 @@ async function logMiss(ki){
   const desc=document.getElementById('missdesc-'+nid).value.trim();
   const ded=parseFloat(document.getElementById('missded-'+nid).value);
   if(!desc||isNaN(ded)) return;
-  await saveMiss(YEAR, ME.id, ki, desc, ded, SESSION.displayName);
+  await saveMiss(YEAR, PERIOD, ME.id, ki, desc, ded, SESSION.displayName);
   const k=ME.kpis[ki];
   k.progress=Math.max(0,k.progress-ded);
   k.status=statusFromProgress(k.progress);

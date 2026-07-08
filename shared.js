@@ -306,11 +306,27 @@ async function getEbitda(year, period){
   return doc.exists ? Number(doc.data().ebitda) : 0;
 }
 
-// Same idea as loadKpiDataCarried: if this quarter has no explicit EBITDA value saved
-// yet, fall back to the most recent prior quarter's value instead of resetting to 10%.
 // The original 2026 target — kept as the ultimate fallback if no year has ever had
 // a target explicitly set. Real per-year targets are stored in ebitdaTargets/{year}.
 const EBITDA_TARGET_DEFAULT = 24544113;
+
+// Lets an admin add a year further out than the automatic rolling window, permanently
+// (stored in Firestore, so it's there for everyone from then on — no code changes ever
+// needed to plan further into the future).
+async function loadExtraYears(){
+  const doc = await db.collection('config').doc('years').get();
+  return doc.exists && Array.isArray(doc.data().extra) ? doc.data().extra : [];
+}
+
+async function addExtraYear(year){
+  const doc = await db.collection('config').doc('years').get();
+  const extra = doc.exists && Array.isArray(doc.data().extra) ? doc.data().extra : [];
+  const y = Number(year);
+  if(!extra.includes(y)) extra.push(y);
+  extra.sort((a,b)=>a-b);
+  await db.collection('config').doc('years').set({ extra });
+  return extra;
+}
 
 // Falls back to the most recent earlier year's target if this year doesn't have its
 // own set yet (targets often don't change every single year) — same carry idea as

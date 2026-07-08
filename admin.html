@@ -181,6 +181,7 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
     <span class="save-status" id="saveStatus"></span>
     <span class="period-label">Year</span>
     <select class="hdr-select" id="yearSel" onchange="changeYear()"></select>
+    <button class="hdr-btn" onclick="addYearPrompt()" title="Add a future year to the list, permanently">+ Year</button>
     <span class="period-label">Quarter</span>
     <select class="hdr-select" id="periodSel" onchange="changePeriod()">
       <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
@@ -332,7 +333,7 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=17"></script>
+<script src="shared.js?v=19"></script>
 <script>
 let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=0, ebitdaAmount=null, ebitdaCarriedFrom=null, ebitdaTargetValue=EBITDA_TARGET_DEFAULT;
 
@@ -342,8 +343,9 @@ let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=0, ebit
   document.getElementById('whoami').textContent = 'Signed in as ' + SESSION.displayName + ' (Admin) · Annual Incentive Scorecard';
   const ySel=document.getElementById('yearSel');
   const thisYear=currentYear();
-  for(let y=thisYear-3;y<=thisYear+1;y++) ySel.innerHTML+=`<option value="${y}" ${y===thisYear?'selected':''}>${y}</option>`;
-  YEAR=thisYear;
+  const startYear=2026; // the year this program began — no point showing anything earlier
+  YEAR=Math.max(thisYear, startYear);
+  await populateYearDropdown();
   document.getElementById('periodSel').value = PERIOD;
   const fmt=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   document.getElementById('footerDate').textContent='Generated '+fmt;
@@ -365,6 +367,32 @@ function updateStatusPreview(progress){
 function setStatus(msg,cls){ const el=document.getElementById('saveStatus'); el.textContent=msg; el.className='save-status '+cls; }
 
 function changeYear(){ YEAR=parseInt(document.getElementById('yearSel').value); loadLeaders(YEAR).then(loadAll).then(()=>{renderCards();renderSummary();}); }
+
+// Builds the Year dropdown from a rolling window (2026 through 2 years from today,
+// which auto-advances every year on its own) plus any years an admin has manually
+// added via "+ Year" — those are stored permanently in Firestore, so this never
+// needs a code update to plan further into the future.
+async function populateYearDropdown(){
+  const ySel=document.getElementById('yearSel');
+  const thisYear=currentYear();
+  const startYear=2026;
+  const rolling=[];
+  for(let y=startYear;y<=thisYear+2;y++) rolling.push(y);
+  const extra = await loadExtraYears();
+  const all = [...new Set([...rolling, ...extra])].sort((a,b)=>a-b);
+  ySel.innerHTML = all.map(y=>`<option value="${y}" ${y===YEAR?'selected':''}>${y}</option>`).join('');
+}
+
+async function addYearPrompt(){
+  const input = prompt('Add which year? (This is permanent and visible to everyone.)');
+  if(!input) return;
+  const year = parseInt(input);
+  if(isNaN(year) || year < 2000 || year > 2200){ alert('Enter a valid 4-digit year.'); return; }
+  await addExtraYear(year);
+  await populateYearDropdown();
+  document.getElementById('yearSel').value = year;
+  changeYear();
+}
 function changePeriod(){ PERIOD=document.getElementById('periodSel').value; loadAll().then(()=>{renderCards();renderSummary();}); }
 
 async function loadAll(){

@@ -48,6 +48,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Misc app config (e.g. which future years have been manually added to the picker)
+    match /config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Org structure: leaders + their KPI definitions. Everyone signed in can read
     // (leaders need to see their own KPI text); only admins can add/edit/deactivate.
     match /leaders/{leaderId} {

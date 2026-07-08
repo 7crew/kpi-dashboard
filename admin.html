@@ -519,6 +519,8 @@ function openModal(preSelectId){
   LEADERS.forEach(l=>s.innerHTML+='<option value="'+l.id+'">'+l.name+'</option>');
   document.getElementById('mEbitda').value=ebitdaPct;
   document.getElementById('mEbitdaVal').textContent=ebitdaPct;
+  document.getElementById('missDesc').value='';
+  document.getElementById('missDeduction').value='';
   document.getElementById('editModal').classList.add('open');
   if(preSelectId){ s.value=preSelectId; populateKpiSel(); }
 }
@@ -564,9 +566,11 @@ async function logMiss(){
   const ki=parseInt(document.getElementById('mKpi').value);
   const desc=document.getElementById('missDesc').value.trim();
   const ded=parseFloat(document.getElementById('missDeduction').value);
-  if(!desc || isNaN(ded)){ return; }
+  if(!lid || isNaN(ki)){ alert('Select a leader and KPI first.'); return; }
+  if(!desc || isNaN(ded)){ alert('Enter both a description and a point deduction.'); return; }
   const l=LEADERS.find(x=>x.id===lid);
-  const k=l.kpis[ki];
+  const k=l && l.kpis[ki];
+  if(!k){ alert('That KPI could not be found — try reselecting it.'); return; }
   await saveMiss(YEAR, PERIOD, lid, ki, desc, ded, SESSION.displayName);
   k.progress=Math.max(0, k.progress - ded);
   k.status=statusFromProgress(k.progress);
@@ -591,7 +595,8 @@ async function applyEdit(){
   const lid=document.getElementById('mLeader').value,ki=parseInt(document.getElementById('mKpi').value);
   if(lid&&!isNaN(ki)){
     const l=LEADERS.find(x=>x.id===lid);
-    const k=l.kpis[ki];
+    const k=l && l.kpis[ki];
+    if(k){
     if(k.kpiType!=='compliance'){
       k.progress=parseInt(document.getElementById('mRange').value);
       k.status=statusFromProgress(k.progress);
@@ -606,6 +611,7 @@ async function applyEdit(){
         k.status=statusFromProgress(k.progress);
         document.getElementById('missDesc').value=''; document.getElementById('missDeduction').value='';
       }
+    }
     }
   }
   ebitdaPct=parseInt(document.getElementById('mEbitda').value);

@@ -154,6 +154,8 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
 .notes-role-sel{font-family:'DM Mono',monospace;font-size:10px;padding:6px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2)}
 .notes-btn{padding:8px 14px;font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.3px;border:none;cursor:pointer;border-radius:6px;background:var(--accent);color:#fff;transition:background .15s;white-space:nowrap}
 .notes-btn:hover{background:#a81a1f}
+.notes-add-block{margin-bottom:12px}
+.notes-add-label{font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-weight:600}
 .lm-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
 .lm-row.inactive{opacity:.55;background:var(--surface2)}
 .lm-name{font-weight:600;font-size:12.5px}
@@ -185,7 +187,7 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
     </select>
     <button class="hdr-btn" onclick="openManageLeaders()">&#128101; Manage Leaders</button>
     <button class="hdr-btn" onclick="logout()">Log Out</button>
-    <button class="hdr-btn" onclick="exportFullDashboard()">⬇ Export</button>
+    <button class="hdr-btn" onclick="openTeamReport()">📄 Report</button>
   </div>
 </header>
 
@@ -291,6 +293,11 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
       <div id="leadersListView">
         <div id="leadersList"></div>
         <button class="mbtn mbtn-primary" style="margin-top:14px;width:100%" onclick="openLeaderForm(null)">+ Add New Leader</button>
+        <hr class="mdiv">
+        <div class="mfield"><label>Maintenance</label>
+          <button class="mbtn mbtn-sec" style="width:100%" onclick="runMigration()">↻ Move Any Pre-Quarter Data Into <span id="migrationTarget"></span></button>
+          <div style="font-size:10px;color:var(--muted);margin-top:6px">One-time fix: if progress, notes, or misses were saved before quarters existed, this moves them into whichever Year/Quarter is currently selected at the top of the dashboard. Safe to click more than once — already-migrated data is skipped.</div>
+        </div>
       </div>
       <div id="leaderFormView" style="display:none">
         <input type="hidden" id="lfOriginalId">
@@ -354,7 +361,7 @@ async function loadAll(){
   setStatus('Loading…','saving');
   try{
     const rows = await loadKpiData(YEAR, PERIOD);
-    LEADERS.forEach(l=>l.kpis.forEach(k=>{ k.progress=0; k.status='not-started'; }));
+    LEADERS.forEach(l=>l.kpis.forEach(k=>{ k.progress=defaultProgress(k.kpiType); k.status=statusFromProgress(k.progress); }));
     rows.forEach(row=>{
       const l=LEADERS.find(x=>x.id===row.leaderId);
       if(!l) return;
@@ -427,10 +434,19 @@ function renderCards(){
           <div class="kdesc">${k.desc}</div>
           <div class="kpi-notes-body" id="kpi-notes-${nid}">
             <div class="notes-thread" id="notes-thread-${nid}"><div style="font-size:10px;color:var(--muted)">Loading…</div></div>
-            <div class="notes-add-row">
-              <select class="notes-role-sel" id="note-role-${nid}"><option value="ceo">CEO Note</option><option value="leader">Leader Note</option></select>
-              <textarea class="notes-ta" id="note-input-${nid}" placeholder="Add a dated note\u2026"></textarea>
-              <button class="notes-btn" onclick="addNote('${l.id}',${i})">Add</button>
+            <div class="notes-add-block">
+              <div class="notes-add-label" style="color:var(--accent)">CEO Note</div>
+              <div class="notes-add-row">
+                <textarea class="notes-ta" id="note-input-ceo-${nid}" placeholder="Add a dated CEO note\u2026"></textarea>
+                <button class="notes-btn" onclick="addNote('${l.id}',${i},'ceo')">Add</button>
+              </div>
+            </div>
+            <div class="notes-add-block">
+              <div class="notes-add-label" style="color:var(--blue)">Leader Note</div>
+              <div class="notes-add-row">
+                <textarea class="notes-ta" id="note-input-leader-${nid}" placeholder="Add a dated leader note\u2026"></textarea>
+                <button class="notes-btn" style="background:var(--blue)" onclick="addNote('${l.id}',${i},'leader')">Add</button>
+              </div>
             </div>
           </div>
         </div>`;
@@ -481,10 +497,9 @@ async function toggleKpiNotes(lid,ki){
   }
 }
 
-async function addNote(lid,ki){
+async function addNote(lid,ki,role){
   const nid=lid+'-'+ki;
-  const ta=document.getElementById('note-input-'+nid);
-  const role=document.getElementById('note-role-'+nid).value;
+  const ta=document.getElementById('note-input-'+role+'-'+nid);
   const text=ta.value.trim();
   if(!text) return;
   await saveNote(YEAR, PERIOD, lid, ki, role, SESSION.displayName, text);
@@ -578,48 +593,37 @@ function openReport(lid, singleQuarter){
   window.open(url, '_blank');
 }
 
-// Fully expands every KPI's description + notes thread (loading real note content,
-// not just the collapsed toggle), so the printed/PDF export shows everything instead
-// of clipping whatever happened to be collapsed on screen.
-async function exportFullDashboard(){
-  setStatus('Preparing export…','saving');
-  const allNotesPromises = [];
-  LEADERS.forEach(l=>{
-    l.kpis.forEach((k,i)=>{
-      const nid=l.id+'-'+i;
-      const row=document.getElementById('krow-'+nid);
-      if(row && !row.classList.contains('expanded')){
-        row.classList.add('expanded');
-        const t=row.querySelector('.ktoggle');
-        if(t) t.textContent='▾ hide details';
-      }
-      const body=document.getElementById('kpi-notes-'+nid);
-      if(body) body.style.display='block';
-      allNotesPromises.push(
-        loadNotes(YEAR, PERIOD, l.id).then(notes=>{
-          const notesForKpi=notes.filter(n=>parseInt(n.kpiIndex)===i);
-          const thread=document.getElementById('notes-thread-'+nid);
-          if(!thread) return;
-          thread.innerHTML = notesForKpi.length ? notesForKpi.map(n=>{
-            const d=new Date(n.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-            return `<div class="note-entry role-${n.role}"><div class="note-meta"><span>${d}</span><span>${n.author}</span><span>${n.role==='ceo'?'CEO':'Leader'}</span></div>${escHtml(n.text)}</div>`;
-          }).join('') : '<div style="font-size:10px;color:var(--muted)">No notes yet.</div>';
-        })
-      );
-    });
-  });
-  await Promise.all(allNotesPromises);
-  setStatus('',''); 
-  window.print();
+function openTeamReport(){
+  window.open('team-report.html?year='+YEAR+'&period='+PERIOD, '_blank');
 }
 
 // ── MANAGE LEADERS ──
 async function openManageLeaders(){
   document.getElementById('leadersModal').classList.add('open');
+  document.getElementById('migrationTarget').textContent = YEAR+' '+PERIOD;
   backToLeadersList();
   await renderLeadersList();
 }
 function closeLeadersModal(){ document.getElementById('leadersModal').classList.remove('open'); }
+
+async function runMigration(){
+  if(!confirm('Move any progress, notes, or misses saved before quarters existed into '+YEAR+' '+PERIOD+'?\n\nThis is safe to run more than once.')) return;
+  setStatus('Migrating…','saving');
+  try{
+    const result = await migrateLegacyData(YEAR, PERIOD);
+    const total = result.kpiData + result.notes + result.misses + result.settings;
+    alert(total>0
+      ? `Migrated into ${YEAR} ${PERIOD}:\n- ${result.kpiData} KPI progress record(s)\n- ${result.notes} note(s)\n- ${result.misses} logged miss(es)\n- ${result.settings} EBITDA setting(s)`
+      : 'Nothing to migrate — no pre-quarter data was found for '+YEAR+'.');
+    setStatus('',''); 
+    await loadAll();
+    renderCards(); renderSummary();
+  }catch(e){
+    console.error(e);
+    setStatus('Migration failed','error');
+    alert('Migration failed — check the console for details.');
+  }
+}
 
 async function renderLeadersList(){
   const all = await loadLeaders(true); // include inactive

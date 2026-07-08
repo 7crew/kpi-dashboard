@@ -93,6 +93,8 @@ const sClass=s=>'s-'+s;
 const fClass=s=>({complete:'f-complete','on-track':'f-on-track','at-risk':'f-at-risk',behind:'f-behind','not-started':'f-not-started'}[s]||'f-not-started');
 const sLabel=s=>({complete:'✓ Complete','on-track':'On Track','at-risk':'At Risk',behind:'Behind','not-started':'Not Started'}[s]||'Not Started');
 const statusFromProgress=p=>p>=100?'complete':p>=75?'on-track':p>=40?'at-risk':p>0?'behind':'not-started';
+// Pass/fail KPIs start at a perfect 100% (no misses logged yet); percentage KPIs start at 0%.
+const defaultProgress=kpiType=>kpiType==='compliance'?100:0;
 const avg=kpis=>kpis.length?Math.round(kpis.reduce((a,k)=>a+k.progress,0)/kpis.length):0;
 const blended=(indivAvg,ebitdaPct)=>Math.round(indivAvg*0.3+ebitdaPct*0.7);
 const pColor=p=>p>=70?'#12a06e':p>=40?'var(--amber)':'var(--accent)';
@@ -204,4 +206,54 @@ async function getEbitda(year, period){
 
 async function setEbitda(year, period, ebitda){
   await db.collection('settings').doc(String(year)+'_'+period).set({ ebitda });
+}
+
+// ── ONE-TIME MIGRATION ──
+// Moves any data saved before quarters existed (kpiData/notes/misses with no "period"
+// field, and the old settings/{year} doc) into the given target quarter. Safe to run
+// more than once — already-migrated docs are skipped.
+async function migrateLegacyData(year, targetPeriod){
+  let migrated = { kpiData:0, notes:0, misses:0, settings:0 };
+
+  // kpiData: legacy docs used a different ID scheme (no period segment), so we copy
+  // into the new ID format and delete the old doc.
+  const kpiSnap = await db.collection('kpiData').where('year','==',String(year)).get();
+  const kpiBatch = db.batch();
+  kpiSnap.docs.forEach(d=>{
+    const data = d.data();
+    if(!data.period){
+      const newId = year+'_'+targetPeriod+'_'+data.leaderId+'_'+data.kpiIndex;
+      kpiBatch.set(db.collection('kpiData').doc(newId), {...data, period: targetPeriod}, {merge:true});
+      kpiBatch.delete(d.ref);
+      migrated.kpiData++;
+    }
+  });
+  await kpiBatch.commit();
+
+  // notes & misses: auto-generated IDs, so just add the missing period field in place.
+  for(const colName of ['notes','misses']){
+    const snap = await db.collection(colName).where('year','==',String(year)).get();
+    const batch = db.batch();
+    snap.docs.forEach(d=>{
+      if(!d.data().period){
+        batch.update(d.ref, { period: targetPeriod });
+        migrated[colName]++;
+      }
+    });
+    await batch.commit();
+  }
+
+  // settings (EBITDA): old doc ID was just the year; copy its value into the new
+  // "{year}_{period}" doc if that doesn't already have a value set.
+  const oldSettings = await db.collection('settings').doc(String(year)).get();
+  if(oldSettings.exists){
+    const newRef = db.collection('settings').doc(String(year)+'_'+targetPeriod);
+    const newDoc = await newRef.get();
+    if(!newDoc.exists){
+      await newRef.set({ ebitda: oldSettings.data().ebitda });
+      migrated.settings++;
+    }
+  }
+
+  return migrated;
 }

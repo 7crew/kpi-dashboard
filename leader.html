@@ -97,7 +97,7 @@ async function loadAll(){
   setStatus('Loading…','saving');
   try{
     const rows = await loadKpiData(YEAR, PERIOD, ME.id);
-    ME.kpis.forEach(k=>{k.progress=0;k.status='not-started';});
+    ME.kpis.forEach(k=>{k.progress=defaultProgress(k.kpiType);k.status=statusFromProgress(k.progress);});
     rows.forEach(row=>{
       const k=ME.kpis[parseInt(row.kpiIndex)];
       if(!k) return;

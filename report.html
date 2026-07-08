@@ -105,7 +105,7 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
       getEbitda(year, period)
     ]);
 
-    l.kpis.forEach(k=>{k.progress=0;k.status='not-started';});
+    l.kpis.forEach(k=>{k.progress=defaultProgress(k.kpiType);k.status=statusFromProgress(k.progress);});
     rows.forEach(row=>{
       const k=l.kpis[parseInt(row.kpiIndex)];
       if(k){ k.progress=parseInt(row.progress)||0; k.status=statusFromProgress(k.progress); }
@@ -162,7 +162,7 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
   const lastRows = latestQProgress[lastPopulatedQ] || {};
   l.kpis.forEach((k,i)=>{
     const r = lastRows[i];
-    k.progress = r ? parseInt(r.progress)||0 : 0;
+    k.progress = r ? (parseInt(r.progress)||0) : defaultProgress(k.kpiType);
     k.status = statusFromProgress(k.progress);
   });
   const indivAvg = avg(l.kpis);

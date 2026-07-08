@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isAdmin() { return isSignedIn() && myProfile().role == 'admin'; }
+    function myLeaderId() { return myProfile().leaderId; }
+
+    // Each user's own profile (role + leaderId + displayName)
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin(); // only admins create/edit profiles (via Firebase console + this collection)
+    }
+
+    // KPI progress/status, one doc per year+leader+kpiIndex
+    match /kpiData/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.leaderId == myLeaderId());
+      allow create, update: if isSignedIn() && (isAdmin() || request.resource.data.leaderId == myLeaderId());
+      allow delete: if isAdmin();
+    }
+
+    // Dated, append-only note threads
+    match /notes/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.leaderId == myLeaderId());
+      allow create: if isSignedIn() && (isAdmin() || request.resource.data.leaderId == myLeaderId());
+      allow update, delete: if isAdmin();
+    }
+
+    // Compliance / pass-fail miss log
+    match /misses/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.leaderId == myLeaderId());
+      allow create: if isSignedIn() && (isAdmin() || request.resource.data.leaderId == myLeaderId());
+      allow update, delete: if isAdmin();
+    }
+
+    // Company EBITDA per year
+    match /settings/{year} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Org structure: leaders + their KPI definitions. Everyone signed in can read
+    // (leaders need to see their own KPI text); only admins can add/edit/deactivate.
+    match /leaders/{leaderId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Per-year KPI definitions for each leader (label/desc/type). Kept separate from
+    // /leaders so redefining KPIs for a new fiscal year never rewrites old years' data.
+    match /leaderKpis/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

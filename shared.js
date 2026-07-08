@@ -61,23 +61,61 @@ let LEADERS = [];
 // Loads leaders from Firestore. On a brand-new project (empty "leaders" collection),
 // seeds it once from SEED_LEADERS so nothing has to be re-typed.
 // includeInactive: pass true to get departed leaders too (used by Manage Leaders screen).
-async function loadLeaders(includeInactive){
+// LEADERS' org info (name/title/active/order) is permanent, but their KPI definitions
+// (label/desc/type) are now stored PER YEAR — so redefining KPIs for a new fiscal year
+// never rewrites what an old year's report shows. If a year has no KPIs defined yet,
+// it automatically borrows the most recent earlier year's list as an editable starting
+// point (tagged via kpisSourceYear so the UI can say so), rather than showing blank.
+async function loadLeaders(year, includeInactive){
   let snap = await db.collection('leaders').get();
   if(snap.empty){
     const batch = db.batch();
-    SEED_LEADERS.forEach(l=>batch.set(db.collection('leaders').doc(l.id), l));
+    SEED_LEADERS.forEach(l=>{
+      const {kpis, ...profile} = l;
+      batch.set(db.collection('leaders').doc(l.id), profile);
+    });
     await batch.commit();
+    const kpiBatch = db.batch();
+    SEED_LEADERS.forEach(l=>{
+      kpiBatch.set(db.collection('leaderKpis').doc('2026_'+l.id), { year:'2026', leaderId:l.id, kpis:l.kpis });
+    });
+    await kpiBatch.commit();
     snap = await db.collection('leaders').get();
   }
   let all = snap.docs.map(d=>d.data());
   all.sort((a,b)=>(a.order||0)-(b.order||0));
-  LEADERS = includeInactive ? all : all.filter(l=>l.active!==false);
+  const filtered = includeInactive ? all : all.filter(l=>l.active!==false);
+
+  for(const l of filtered){
+    const result = await loadLeaderKpisWithFallback(year, l.id);
+    l.kpis = result.kpis;
+    l.kpisSourceYear = result.sourceYear;
+  }
+  LEADERS = filtered;
   return LEADERS;
 }
 
-// Saves a full leader profile (create or update). id is slug-safe (lowercase, no spaces).
+async function loadLeaderKpisWithFallback(year, leaderId){
+  const doc = await db.collection('leaderKpis').doc(String(year)+'_'+leaderId).get();
+  if(doc.exists) return { kpis: doc.data().kpis, sourceYear: null };
+  for(let y=Number(year)-1; y>=Number(year)-10; y--){
+    const priorDoc = await db.collection('leaderKpis').doc(String(y)+'_'+leaderId).get();
+    if(priorDoc.exists) return { kpis: priorDoc.data().kpis, sourceYear: y };
+  }
+  return { kpis: [], sourceYear: null };
+}
+
+// Explicitly saves this year's KPI list for a leader — always writes its own
+// independent record, so it can never retroactively change any other year's data.
+async function saveLeaderKpisForYear(year, leaderId, kpis){
+  await db.collection('leaderKpis').doc(String(year)+'_'+leaderId).set({ year:String(year), leaderId, kpis });
+}
+
+// Saves the leader's org info only (name/title/active/order) — KPI list is saved
+// separately via saveLeaderKpisForYear.
 async function saveLeaderProfile(leader){
-  await db.collection('leaders').doc(leader.id).set(leader);
+  const {kpis, kpisSourceYear, ...profile} = leader;
+  await db.collection('leaders').doc(leader.id).set(profile);
 }
 
 async function setLeaderActive(leaderId, active){

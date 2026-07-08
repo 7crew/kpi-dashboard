@@ -64,16 +64,16 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);font-
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=13"></script>
+<script src="shared.js?v=14"></script>
 <script>
 (async function(){
   const SESSION = await requireSession('admin');
   if(!SESSION) return;
 
-  await loadLeaders();
   const params=new URLSearchParams(location.search);
   const year=params.get('year')||currentYear();
   const period=params.get('period')||currentQuarter();
+  await loadLeaders(year);
 
   document.getElementById('docMeta').innerHTML = 'Fiscal Year '+year+' · '+period+'<br>Generated '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   document.getElementById('footerYear').textContent = '7 Crew Enterprises LLC · FY '+year;

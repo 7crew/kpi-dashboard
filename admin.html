@@ -209,7 +209,6 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
       <div class="e-stat"><span class="lbl">Status</span><div class="big" id="eStat" style="font-size:20px;color:var(--muted)">Early Stage</div><div class="sub">Active this fiscal year</div><div id="eCarriedNote" style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px"></div></div>
     </div>
     <div class="e-track"><div class="e-fill" id="eBar" style="width:10%"></div><span class="e-pct-label" id="eBarLabel">10%</span></div>
-    <div style="text-align:right;margin-top:6px"><span class="ktoggle" onclick="resetEbitdaQuarter()" style="font-size:9.5px">↺ Reset EBITDA for <span id="eResetLabel"></span></span></div>
   </div>
 
   <div class="section-title">02 &nbsp; Individual KPI Goals<span class="stag">30% of Annual Bonus</span></div>
@@ -307,10 +306,11 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
         <div class="mfield"><label>Title</label><input type="text" id="lfTitle" placeholder="e.g. VP of Marketing"></div>
         <div style="font-family:'DM Mono',monospace;font-size:9.5px;color:var(--muted);margin-bottom:12px" id="lfIdPreview"></div>
         <hr class="mdiv">
-        <div class="mfield"><label>KPIs</label>
+        <div class="mfield"><label>KPIs for <span id="lfYearLabel"></span></label>
+          <div id="lfKpiSourceNote" style="display:none;background:#fff3cd;color:#856404;font-size:10px;padding:8px 10px;border-radius:6px;margin-bottom:10px"></div>
           <div id="lfKpiList"></div>
           <button class="mbtn mbtn-sec" style="margin-top:8px" onclick="addKpiField()">+ Add KPI</button>
-          <div style="font-size:10px;color:var(--muted);margin-top:8px">Existing KPIs can be reworded and retyped, but not deleted or reordered — that would break the link to any historical notes/scores already saved against them.</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:8px">KPIs are saved per year — editing them here only affects <span id="lfYearLabel2"></span> and never changes how past years' reports look. Existing KPIs (from this same year) can be reworded, but not deleted or reordered, to protect the link to historical notes/scores.</div>
         </div>
       </div>
     </div>
@@ -324,7 +324,7 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=13"></script>
+<script src="shared.js?v=14"></script>
 <script>
 let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=10, ebitdaAmount=null, ebitdaCarriedFrom=null;
 
@@ -341,7 +341,7 @@ let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=10, ebi
   document.getElementById('footerDate').textContent='Generated '+fmt;
   document.getElementById('mRange').addEventListener('input',function(){document.getElementById('mRangeVal').textContent=this.value;document.getElementById('mRangeDisp').textContent=this.value+'%';updateStatusPreview(parseInt(this.value));});
   document.getElementById('mEbitda').addEventListener('input',function(){document.getElementById('mEbitdaVal').textContent=this.value;document.getElementById('mEbitdaDisp').textContent=this.value+'%';});
-  await loadLeaders();
+  await loadLeaders(YEAR);
   await loadAll();
   renderCards(); renderSummary();
 })();
@@ -356,7 +356,7 @@ function updateStatusPreview(progress){
 
 function setStatus(msg,cls){ const el=document.getElementById('saveStatus'); el.textContent=msg; el.className='save-status '+cls; }
 
-function changeYear(){ YEAR=parseInt(document.getElementById('yearSel').value); loadAll().then(()=>{renderCards();renderSummary();}); }
+function changeYear(){ YEAR=parseInt(document.getElementById('yearSel').value); loadLeaders(YEAR).then(loadAll).then(()=>{renderCards();renderSummary();}); }
 function changePeriod(){ PERIOD=document.getElementById('periodSel').value; loadAll().then(()=>{renderCards();renderSummary();}); }
 
 async function loadAll(){
@@ -401,7 +401,6 @@ function updateEbitdaUI(){
   document.getElementById('ePct').textContent=ebitdaPct+'%';
   document.getElementById('eBarLabel').textContent=ebitdaPct+'%';
   document.getElementById('eStat').textContent=eStatus(ebitdaPct);
-  document.getElementById('eResetLabel').textContent = YEAR+' '+PERIOD;
   document.getElementById('eAmountSub').textContent = ebitdaAmount!=null
     ? (fmtMoney(ebitdaAmount)+' of '+fmtMoney(EBITDA_TARGET)+' target')
     : 'of annual EBITDA target';
@@ -409,12 +408,7 @@ function updateEbitdaUI(){
   if(noteEl) noteEl.textContent = ebitdaCarriedFrom ? ('↳ carried forward from '+ebitdaCarriedFrom+' — not yet updated this quarter') : '';
 }
 
-async function resetEbitdaQuarter(){
-  if(!confirm('Clear the saved EBITDA value for '+YEAR+' '+PERIOD+'? It will go back to carrying forward from the prior quarter.')) return;
-  await deleteEbitda(YEAR, PERIOD);
-  await loadAll();
-  renderSummary();
-}
+
 
 async function setEbitdaDirect(){
   const input=document.getElementById('ebitdaDirectInput');
@@ -436,7 +430,7 @@ function renderCards(){
     const a=avg(l.kpis);
     const statusLabel=a===0?'Not Started':a<25?'Early Stage':a<50?'In Progress':a<75?'On Track':a<100?'Strong':'Complete';
     const statusCls=a===0?'s-not-started':a<50?'s-at-risk':a<100?'s-on-track':'s-complete';
-    return `<div class="leader-card"><div class="leader-card-head"><div><div class="lname">${l.name}</div><div class="lrole">${l.title}</div></div>
+    return `<div class="leader-card"><div class="leader-card-head"><div><div class="lname">${l.name}</div><div class="lrole">${l.title}</div>${l.kpisSourceYear?`<div style="font-size:9px;color:var(--amber);font-family:'DM Mono',monospace;margin-top:3px">↳ using ${l.kpisSourceYear}'s KPIs — not yet set for ${YEAR}</div>`:''}</div>
       <div class="lavg-block"><div class="lavg-status-pill ${statusCls}">${statusLabel}</div><div class="lavg-pct">${a}% avg</div>
         <div class="card-btn-row">
           <button class="card-update-btn" onclick="openModal('${l.id}')">&#9998; Update</button>
@@ -734,7 +728,7 @@ async function runMigration(){
 }
 
 async function renderLeadersList(){
-  const all = await loadLeaders(true); // include inactive
+  const all = await loadLeaders(YEAR, true); // include inactive
   const el = document.getElementById('leadersList');
   el.innerHTML = all.map(l=>`
     <div class="lm-row ${l.active===false?'inactive':''}">
@@ -744,7 +738,7 @@ async function renderLeadersList(){
         <button class="lm-btn danger" onclick="toggleActive('${l.id}',${l.active===false})">${l.active===false?'Reactivate':'Deactivate'}</button>
       </div>
     </div>`).join('') || '<div style="color:var(--muted);font-size:11px">No leaders yet.</div>';
-  await loadLeaders(); // refresh the active-only global list used everywhere else
+  await loadLeaders(YEAR); // refresh the active-only global list used everywhere else
 }
 
 async function toggleActive(id, makeActive){
@@ -766,12 +760,22 @@ async function openLeaderForm(id){
   document.getElementById('leaderFormFooter').style.display='flex';
   document.getElementById('lfKpiList').innerHTML='';
   document.getElementById('lfIdPreview').textContent='';
+  document.getElementById('lfYearLabel').textContent = YEAR;
+  document.getElementById('lfYearLabel2').textContent = YEAR;
 
   if(id){
-    const all = await loadLeaders(true);
+    const all = await loadLeaders(YEAR, true);
     editingLeader = all.find(l=>l.id===id);
   } else {
     editingLeader = null;
+  }
+
+  const sourceNote = document.getElementById('lfKpiSourceNote');
+  if(editingLeader && editingLeader.kpisSourceYear){
+    sourceNote.style.display='block';
+    sourceNote.textContent = `Showing ${editingLeader.kpisSourceYear}'s KPIs as a starting point — ${YEAR} doesn't have its own set yet. Edit as needed and Save to make these official for ${YEAR} (this won't change ${editingLeader.kpisSourceYear}'s data).`;
+  } else {
+    sourceNote.style.display='none';
   }
 
   document.getElementById('lfOriginalId').value = id || '';
@@ -817,8 +821,9 @@ async function saveLeaderForm(){
   const id = originalId || slugify(name);
   const order = editingLeader ? editingLeader.order : LEADERS.length + 100;
 
-  await saveLeaderProfile({ id, name, title, active:true, order, kpis });
-  await loadLeaders();
+  await saveLeaderProfile({ id, name, title, active:true, order });
+  await saveLeaderKpisForYear(YEAR, id, kpis);
+  await loadLeaders(YEAR);
   await renderLeadersList();
   backToLeadersList();
   renderCards(); renderSummary();

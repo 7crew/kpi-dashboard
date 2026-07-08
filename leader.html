@@ -74,14 +74,14 @@ select.kstatus{font-family:'DM Mono',monospace;font-size:10.5px;padding:5px 8px;
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=13"></script>
+<script src="shared.js?v=14"></script>
 <script>
 let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ME=null, ebitdaPct=10;
 
 (async function init(){
   SESSION = await requireSession('leader');
   if(!SESSION) return;
-  await loadLeaders();
+  await loadLeaders(YEAR);
   ME = LEADERS.find(l=>l.id===SESSION.leaderId);
   if(!ME){ document.body.innerHTML='<p style="padding:40px">No leader profile matched — contact an admin.</p>'; return; }
   document.getElementById('whoami').textContent = SESSION.displayName + ' · ' + ME.title;

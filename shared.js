@@ -97,7 +97,23 @@ async function loadLeaders(year, includeInactive){
 
 async function loadLeaderKpisWithFallback(year, leaderId){
   const doc = await db.collection('leaderKpis').doc(String(year)+'_'+leaderId).get();
-  return { kpis: doc.exists ? doc.data().kpis : [], sourceYear: null };
+  if(doc.exists) return { kpis: doc.data().kpis, sourceYear: null };
+
+  // One-time recovery: older data had 2026's KPIs embedded directly on the leader
+  // profile. If that's still there and 2026 has no dedicated record yet, adopt it,
+  // then remove it from the old spot so this can never fire again for any other year
+  // (a genuinely new future year should stay blank, as intended).
+  if(String(year) === '2026'){
+    const legacyDoc = await db.collection('leaders').doc(leaderId).get();
+    if(legacyDoc.exists && Array.isArray(legacyDoc.data().kpis) && legacyDoc.data().kpis.length){
+      const legacyKpis = legacyDoc.data().kpis;
+      await saveLeaderKpisForYear(year, leaderId, legacyKpis);
+      await db.collection('leaders').doc(leaderId).update({ kpis: firebase.firestore.FieldValue.delete() });
+      return { kpis: legacyKpis, sourceYear: null };
+    }
+  }
+
+  return { kpis: [], sourceYear: null };
 }
 
 // Explicitly saves this year's KPI list for a leader — always writes its own

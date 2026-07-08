@@ -535,6 +535,8 @@ function populateKpiSel(){
     const ki=parseInt(this.value);
     if(isNaN(ki)) return;
     document.getElementById('mResetBtn').style.display='inline-block';
+    document.getElementById('missDesc').value='';
+    document.getElementById('missDeduction').value='';
     const k=l.kpis[ki];
     if(k.kpiType==='compliance'){
       document.getElementById('percentageControls').style.display='none';
@@ -585,7 +587,7 @@ async function resetToCarryForward(){
   renderCards(); renderSummary();
 }
 
-function applyEdit(){
+async function applyEdit(){
   const lid=document.getElementById('mLeader').value,ki=parseInt(document.getElementById('mKpi').value);
   if(lid&&!isNaN(ki)){
     const l=LEADERS.find(x=>x.id===lid);
@@ -593,6 +595,17 @@ function applyEdit(){
     if(k.kpiType!=='compliance'){
       k.progress=parseInt(document.getElementById('mRange').value);
       k.status=statusFromProgress(k.progress);
+    } else {
+      // Compliance KPI: if a miss was typed in but "+ Log Miss" was never clicked,
+      // Save Changes should still commit it rather than silently discard it.
+      const desc=document.getElementById('missDesc').value.trim();
+      const ded=parseFloat(document.getElementById('missDeduction').value);
+      if(desc && !isNaN(ded)){
+        await saveMiss(YEAR, PERIOD, lid, ki, desc, ded, SESSION.displayName);
+        k.progress=Math.max(0, k.progress - ded);
+        k.status=statusFromProgress(k.progress);
+        document.getElementById('missDesc').value=''; document.getElementById('missDeduction').value='';
+      }
     }
   }
   ebitdaPct=parseInt(document.getElementById('mEbitda').value);

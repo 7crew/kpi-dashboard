@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPI Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--accent:#cd2128;--text:#111318;--subtext:#4a5060;--muted:#8a919e;--border:#e2e4e9;--surface2:#f4f5f7;--blue:#1d6fcf;--green:#12a06e;--amber:#c97b00;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:#fff;padding:40px 50px;max-width:850px;margin:0 auto}
+.toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:20px}
+.toolbar button{padding:8px 16px;font-family:'DM Mono',monospace;font-size:11px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);cursor:pointer}
+.toolbar button:hover{border-color:var(--accent);color:var(--accent)}
+.letterhead{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid var(--accent);padding-bottom:16px;margin-bottom:28px}
+.brand{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px}
+.brand-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px}
+.doc-meta{text-align:right;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)}
+.leader-hero{margin-bottom:26px}
+.leader-hero h1{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:1px}
+.leader-hero .role{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.score-strip{display:flex;gap:16px;margin:20px 0 30px}
+.score-box{flex:1;background:var(--surface2);border-radius:10px;padding:16px;text-align:center}
+.score-box .num{font-family:'Bebas Neue',sans-serif;font-size:34px;color:var(--accent)}
+.score-box .lbl{font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;color:var(--muted);letter-spacing:1px;margin-top:4px}
+.kpi-block{border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:16px;break-inside:avoid}
+.kpi-block h3{font-size:14px;margin-bottom:4px}
+.kpi-block .desc{font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+.kpi-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:8px}
+.kpi-fill{height:100%;border-radius:4px}
+.kpi-score-row{display:flex;justify-content:space-between;align-items:center;font-family:'DM Mono',monospace;font-size:11px}
+.pill{padding:3px 10px;border-radius:10px;font-weight:600}
+.notes-section{margin-top:12px;padding-top:10px;border-top:1px dashed var(--border)}
+.note-line{font-size:10.5px;color:var(--subtext);margin-bottom:5px}
+.note-line b{color:var(--text)}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-family:'DM Mono',monospace;font-size:9.5px;color:var(--muted);display:flex;justify-content:space-between}
+@media print{
+  .toolbar{display:none}
+  body{padding:0}
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button onclick="window.print()">🖨 Print / Save as PDF</button>
+  <button onclick="window.close()">Close</button>
+</div>
+
+<div class="letterhead">
+  <div><div class="brand">7CREW ENTERPRISES</div><div class="brand-sub">LEADERSHIP KPI REPORT</div></div>
+  <div class="doc-meta" id="docMeta"></div>
+</div>
+
+<div class="leader-hero">
+  <h1 id="leaderName">—</h1>
+  <div class="role" id="leaderRole">—</div>
+</div>
+
+<div class="score-strip">
+  <div class="score-box"><div class="num" id="scoreIndiv">—</div><div class="lbl">Individual KPI Avg</div></div>
+  <div class="score-box"><div class="num" id="scoreEbitda">—</div><div class="lbl">Company EBITDA</div></div>
+  <div class="score-box"><div class="num" id="scoreBlend">—</div><div class="lbl">Blended Bonus Score</div></div>
+</div>
+
+<div id="kpiBlocks"></div>
+
+<footer>
+  <span>Confidential — For Internal &amp; Board / PE Corporate Use Only</span>
+  <span id="footerYear"></span>
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="shared.js"></script>
+<script>
+(async function(){
+  const SESSION = await requireSession('admin');
+  if(!SESSION) return;
+
+  const params=new URLSearchParams(location.search);
+  const lid=params.get('leader');
+  const year=params.get('year')||currentYear();
+  const l=LEADERS.find(x=>x.id===lid);
+  if(!l){ document.body.innerHTML='<p>Leader not found.</p>'; return; }
+
+  document.getElementById('docMeta').innerHTML = 'Fiscal Year '+year+'<br>Generated '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  document.getElementById('footerYear').textContent = '7 Crew Enterprises LLC · FY '+year;
+  document.getElementById('leaderName').textContent = l.name;
+  document.getElementById('leaderRole').textContent = l.title;
+
+  const [rows, notes, misses, ebitdaPct] = await Promise.all([
+    loadKpiData(year, lid),
+    loadNotes(year, lid),
+    loadMisses(year, lid),
+    getEbitda(year)
+  ]);
+
+  l.kpis.forEach(k=>{k.progress=0;k.status='not-started';});
+  rows.forEach(row=>{
+    const k=l.kpis[parseInt(row.kpiIndex)];
+    if(k){ k.progress=parseInt(row.progress)||0; k.status=row.status||'not-started'; }
+  });
+  const indivAvg = avg(l.kpis);
+  const blend = blended(indivAvg, ebitdaPct);
+
+  document.getElementById('scoreIndiv').textContent = indivAvg+'%';
+  document.getElementById('scoreEbitda').textContent = ebitdaPct+'%';
+  document.getElementById('scoreBlend').textContent = blend+'%';
+
+  const fillColor = s => ({complete:'#12a06e','on-track':'#12a06e','at-risk':'#c97b00',behind:'#cd2128','not-started':'#d0d3da'}[s]||'#d0d3da');
+  const pillStyle = s => ({complete:'background:#d4edda;color:#1a6630','on-track':'background:#d1ecf1;color:#0c5460','at-risk':'background:#fff3cd;color:#856404',behind:'background:#f8d7da;color:#721c24','not-started':'background:#f0f0f0;color:#888'}[s]||'');
+
+  document.getElementById('kpiBlocks').innerHTML = l.kpis.map((k,i)=>{
+    const notesForKpi=notes.filter(n=>parseInt(n.kpiIndex)===i);
+    const missesForKpi=misses.filter(m=>parseInt(m.kpiIndex)===i);
+    let notesHtml='';
+    if(notesForKpi.length){
+      notesHtml += '<div class="notes-section">'+notesForKpi.map(n=>{
+        const d=new Date(n.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+        return `<div class="note-line"><b>${d} · ${n.role==='ceo'?'CEO':'Leader'}:</b> ${escHtml(n.text)}</div>`;
+      }).join('') + '</div>';
+    }
+    let missHtml='';
+    if(k.kpiType==='compliance' && missesForKpi.length){
+      missHtml = '<div class="notes-section">'+missesForKpi.map(m=>{
+        const d=new Date(m.date).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        return `<div class="note-line"><b>${d} · -${m.deduction}pt:</b> ${escHtml(m.description)}</div>`;
+      }).join('')+'</div>';
+    }
+    return `<div class="kpi-block">
+      <h3>KPI #${i+1} — ${k.label}</h3>
+      <div class="desc">${k.desc}</div>
+      <div class="kpi-track"><div class="kpi-fill" style="width:${k.progress}%;background:${fillColor(k.status)}"></div></div>
+      <div class="kpi-score-row"><span class="pill" style="${pillStyle(k.status)}">${k.progress}% · ${sLabel(k.status)}</span></div>
+      ${missHtml}
+      ${notesHtml}
+    </div>`;
+  }).join('');
+})();
+</script>
+</body>
+</html>

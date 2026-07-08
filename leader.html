@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My KPI Progress — 7Crew</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f5f7;--surface:#fff;--surface2:#eeeff2;--border:#e2e4e9;--border2:#d0d3da;--accent:#cd2128;--accent-dim:rgba(205,33,40,0.10);--blue:#1d6fcf;--green:#12a06e;--amber:#c97b00;--text:#111318;--subtext:#4a5060;--muted:#8a919e;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 36px;border-bottom:2px solid var(--accent);position:sticky;top:0;background:rgba(255,255,255,0.97);z-index:200;gap:16px;flex-wrap:wrap;}
+.hdr-title{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--text)}
+.hdr-sub{font-family:'DM Mono',monospace;font-size:9.5px;color:var(--muted);margin-top:2px}
+.hdr-btn{padding:6px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;font-family:'DM Mono',monospace;font-size:11px;color:var(--subtext);cursor:pointer}
+.hdr-btn:hover{border-color:var(--accent);color:var(--accent)}
+main{padding:24px 36px;max-width:900px;margin:0 auto}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:4px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;padding-bottom:7px;border-bottom:1px solid var(--border);}
+.ebitda-mini{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:24px;display:flex;gap:24px;align-items:center}
+.ebitda-mini .big{font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--accent)}
+.ebitda-mini .lbl{font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;color:var(--muted)}
+.krow{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.kname{font-size:13px;font-weight:600;margin-bottom:8px}
+.ktrack{height:6px;background:var(--border2);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.kfill{height:100%;border-radius:3px}
+.f-complete,.f-on-track{background:#12a06e}
+.f-at-risk{background:var(--amber)}
+.f-behind{background:var(--accent)}
+.f-not-started{background:var(--border2)}
+.kbadge{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;padding:2px 9px;border-radius:10px}
+.s-complete{background:#d4edda;color:#1a6630}.s-on-track{background:#d1ecf1;color:#0c5460}.s-at-risk{background:#fff3cd;color:#856404}.s-behind{background:#f8d7da;color:#721c24}.s-not-started{background:#f0f0f0;color:#888}
+.kdesc{font-size:11.5px;color:var(--muted);line-height:1.6;margin:8px 0;border-left:2px solid var(--border2);padding-left:8px}
+.update-row{display:flex;align-items:center;gap:10px;margin-top:10px}
+.update-row input[type=range]{flex:1;accent-color:var(--accent)}
+select.kstatus{font-family:'DM Mono',monospace;font-size:10.5px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2)}
+.save-mini{padding:6px 14px;font-family:'DM Mono',monospace;font-size:10px;font-weight:600;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer}
+.compliance-box{background:var(--surface2);border-radius:8px;padding:10px;margin-top:8px}
+.miss-log{max-height:120px;overflow-y:auto;font-size:10.5px;margin-top:8px}
+.miss-item{padding:5px 0;border-bottom:1px dashed var(--border2)}
+.miss-row{display:flex;gap:6px;margin-top:8px}
+.miss-row input{flex:1;padding:6px 8px;font-family:'DM Sans',sans-serif;font-size:11px;border:1px solid var(--border2);border-radius:6px;background:#fff}
+.notes-thread{max-height:200px;overflow-y:auto;margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.note-entry{background:var(--surface2);border-radius:8px;padding:8px 10px;font-size:11.5px;line-height:1.5}
+.note-entry.role-leader{border-left:3px solid var(--blue)}
+.note-entry.role-ceo{border-left:3px solid var(--accent)}
+.note-meta{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:3px;display:flex;gap:8px}
+.notes-add-row{display:flex;gap:6px;margin-top:8px}
+.notes-ta{flex:1;min-height:46px;resize:vertical;border:1px solid var(--border2);border-radius:7px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:11.5px;background:var(--surface2)}
+.notes-btn{padding:8px 14px;font-family:'DM Mono',monospace;font-size:9.5px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer}
+.save-status{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)}
+.save-status.saving{color:var(--amber)}.save-status.saved{color:var(--green)}.save-status.error{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <div><div class="hdr-title">MY KPI PROGRESS</div><div class="hdr-sub" id="whoami"></div></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="save-status" id="saveStatus"></span>
+    <button class="hdr-btn" onclick="logout()">Log Out</button>
+  </div>
+</header>
+<main>
+  <div class="ebitda-mini">
+    <div><div class="lbl">Company EBITDA Progress</div><div class="big" id="ePct">10%</div></div>
+    <div style="font-size:11px;color:var(--muted);max-width:340px">This is a shared company-wide goal (70% of your annual bonus) — it's set by leadership and shown here for reference.</div>
+  </div>
+  <div class="section-title">My KPI Goals</div>
+  <div id="myKpis"></div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="shared.js"></script>
+<script>
+let SESSION=null, YEAR=currentYear(), ME=null, ebitdaPct=10;
+
+(async function init(){
+  SESSION = await requireSession('leader');
+  if(!SESSION) return;
+  ME = LEADERS.find(l=>l.id===SESSION.leaderId);
+  if(!ME){ document.body.innerHTML='<p style="padding:40px">No leader profile matched — contact an admin.</p>'; return; }
+  document.getElementById('whoami').textContent = SESSION.displayName + ' · ' + ME.title;
+  await loadAll();
+  render();
+})();
+
+function setStatus(msg,cls){ const el=document.getElementById('saveStatus'); el.textContent=msg; el.className='save-status '+cls; }
+
+async function loadAll(){
+  setStatus('Loading…','saving');
+  try{
+    const rows = await loadKpiData(YEAR, ME.id);
+    ME.kpis.forEach(k=>{k.progress=0;k.status='not-started';});
+    rows.forEach(row=>{
+      const k=ME.kpis[parseInt(row.kpiIndex)];
+      if(!k) return;
+      k.progress=parseInt(row.progress)||0;
+      k.status=row.status||'not-started';
+    });
+    ebitdaPct = await getEbitda(YEAR);
+    document.getElementById('ePct').textContent=ebitdaPct+'%';
+    setStatus('','');
+  }catch(e){ console.error(e); setStatus('Load failed','error'); }
+}
+
+async function saveProgress(){
+  setStatus('Saving…','saving');
+  const rows=ME.kpis.map((k,i)=>({leaderId:ME.id,leaderName:ME.name,kpiIndex:i,kpiLabel:k.label,kpiType:k.kpiType,progress:k.progress,status:k.status}));
+  try{
+    await saveKpiRows(YEAR, rows, SESSION.displayName);
+    setStatus('✓ Saved','saved'); setTimeout(()=>setStatus('',''),1500);
+  }catch(e){ console.error(e); setStatus('Save failed','error'); }
+}
+
+function render(){
+  const el=document.getElementById('myKpis');
+  el.innerHTML = ME.kpis.map((k,i)=>{
+    const nid='k'+i;
+    if(k.kpiType==='compliance'){
+      return `<div class="krow">
+        <div class="kname">KPI #${i+1} — ${k.label} <span style="color:var(--muted);font-weight:400;font-size:10px">(pass/fail)</span></div>
+        <div class="kdesc">${k.desc}</div>
+        <div class="compliance-box">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--accent)">${k.progress}%</div>
+          <div id="misslog-${nid}" class="miss-log">Loading…</div>
+          <div class="miss-row">
+            <input type="text" id="missdesc-${nid}" placeholder="Describe the miss">
+            <input type="number" id="missded-${nid}" placeholder="Points" style="max-width:80px">
+            <button class="save-mini" onclick="logMiss(${i})">Log Miss</button>
+          </div>
+        </div>
+        ${notesBlock(i,nid)}
+      </div>`;
+    }
+    return `<div class="krow">
+      <div class="kname">KPI #${i+1} — ${k.label}</div>
+      <div class="kdesc">${k.desc}</div>
+      <div class="ktrack"><div class="kfill f-${k.status}" style="width:${k.progress}%"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="kbadge s-${k.status}">${k.progress}% · ${sLabel(k.status)}</span>
+      </div>
+      <div class="update-row">
+        <input type="range" min="0" max="100" value="${k.progress}" id="range-${nid}" oninput="document.getElementById('rangeval-${nid}').textContent=this.value+'%'">
+        <span id="rangeval-${nid}">${k.progress}%</span>
+        <select class="kstatus" id="status-${nid}">
+          <option value="not-started" ${k.status==='not-started'?'selected':''}>Not Started</option>
+          <option value="on-track" ${k.status==='on-track'?'selected':''}>On Track</option>
+          <option value="at-risk" ${k.status==='at-risk'?'selected':''}>At Risk</option>
+          <option value="behind" ${k.status==='behind'?'selected':''}>Behind</option>
+          <option value="complete" ${k.status==='complete'?'selected':''}>Complete</option>
+        </select>
+        <button class="save-mini" onclick="updateKpi(${i})">Save</button>
+      </div>
+      ${notesBlock(i,nid)}
+    </div>`;
+  }).join('');
+  ME.kpis.forEach((k,i)=>loadNotesFor(i,'k'+i));
+  ME.kpis.forEach((k,i)=>{ if(k.kpiType==='compliance') loadMissesFor(i,'k'+i); });
+}
+
+function notesBlock(i,nid){
+  return `<div class="notes-thread" id="notes-${nid}"><div style="font-size:10px;color:var(--muted)">Loading notes…</div></div>
+    <div class="notes-add-row">
+      <textarea class="notes-ta" id="noteinput-${nid}" placeholder="Add a dated progress note\u2026"></textarea>
+      <button class="notes-btn" onclick="addNote(${i})">Add</button>
+    </div>`;
+}
+
+async function loadNotesFor(ki,nid){
+  const notes = (await loadNotes(YEAR, ME.id)).filter(n=>parseInt(n.kpiIndex)===ki);
+  const el=document.getElementById('notes-'+nid);
+  if(!el) return;
+  el.innerHTML = notes.length ? notes.map(n=>{
+    const d=new Date(n.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    return `<div class="note-entry role-${n.role}"><div class="note-meta"><span>${d}</span><span>${n.author}</span><span>${n.role==='ceo'?'CEO':'You'}</span></div>${escHtml(n.text)}</div>`;
+  }).join('') : '<div style="font-size:10px;color:var(--muted)">No notes yet.</div>';
+}
+
+async function loadMissesFor(ki,nid){
+  const misses = (await loadMisses(YEAR, ME.id)).filter(m=>parseInt(m.kpiIndex)===ki);
+  const el=document.getElementById('misslog-'+nid);
+  if(!el) return;
+  el.innerHTML = misses.length ? misses.map(m=>{
+    const d=new Date(m.date).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    return `<div class="miss-item"><b style="color:var(--accent)">-${m.deduction}pt</b> ${d} — ${escHtml(m.description)}</div>`;
+  }).join('') : '<div style="color:var(--muted)">No misses logged — currently 100%.</div>';
+}
+
+async function addNote(ki){
+  const nid='k'+ki;
+  const ta=document.getElementById('noteinput-'+nid);
+  const text=ta.value.trim();
+  if(!text) return;
+  await saveNote(YEAR, ME.id, ki, 'leader', SESSION.displayName, text);
+  ta.value='';
+  loadNotesFor(ki,nid);
+}
+
+async function updateKpi(ki){
+  const nid='k'+ki;
+  const k=ME.kpis[ki];
+  k.progress=parseInt(document.getElementById('range-'+nid).value);
+  k.status=document.getElementById('status-'+nid).value;
+  await saveProgress();
+  render();
+}
+
+async function logMiss(ki){
+  const nid='k'+ki;
+  const desc=document.getElementById('missdesc-'+nid).value.trim();
+  const ded=parseFloat(document.getElementById('missded-'+nid).value);
+  if(!desc||isNaN(ded)) return;
+  await saveMiss(YEAR, ME.id, ki, desc, ded, SESSION.displayName);
+  const k=ME.kpis[ki];
+  k.progress=Math.max(0,k.progress-ded);
+  k.status=statusFromProgress(k.progress);
+  await saveProgress();
+  render();
+}
+</script>
+</body>
+</html>

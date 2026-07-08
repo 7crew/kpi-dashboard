@@ -196,13 +196,21 @@ async function loadKpiDataAllQuarters(year, leaderId){
 
 async function loadNotes(year, period, leaderId){
   const snap = await db.collection('notes').where('year','==',String(year)).where('period','==',period).where('leaderId','==',leaderId).get();
-  const notes = snap.docs.map(d=>d.data());
+  const notes = snap.docs.map(d=>({...d.data(), id:d.id}));
   notes.sort((a,b)=>new Date(a.date)-new Date(b.date));
   return notes;
 }
 
 async function saveNote(year, period, leaderId, kpiIndex, role, author, text){
   await db.collection('notes').add({ year:String(year), period, leaderId, kpiIndex, role, author, date:new Date().toISOString(), text });
+}
+
+async function updateNote(noteId, newText){
+  await db.collection('notes').doc(noteId).update({ text:newText, edited:true, editedDate:new Date().toISOString() });
+}
+
+async function deleteNote(noteId){
+  await db.collection('notes').doc(noteId).delete();
 }
 
 async function loadMisses(year, period, leaderId){

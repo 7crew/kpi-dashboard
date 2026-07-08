@@ -323,7 +323,7 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=9"></script>
+<script src="shared.js?v=10"></script>
 <script>
 let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=10;
 
@@ -496,10 +496,42 @@ async function toggleKpiNotes(lid,ki){
     if(!notesForKpi.length){ thread.innerHTML='<div style="font-size:10px;color:var(--muted)">No notes yet.</div>'; return; }
     thread.innerHTML=notesForKpi.map(n=>{
       const d=new Date(n.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-      return `<div class="note-entry role-${n.role}"><div class="note-meta"><span>${d}</span><span>${n.author}</span><span>${n.role==='ceo'?'CEO':'Leader'}</span></div>${escHtml(n.text)}</div>`;
+      const editedTag = n.edited ? ' <span style="color:var(--muted)">(edited)</span>' : '';
+      return `<div class="note-entry role-${n.role}" id="note-${n.id}">
+        <div class="note-meta"><span>${d}</span><span>${n.author}</span><span>${n.role==='ceo'?'CEO':'Leader'}</span>${editedTag}</div>
+        <div class="note-view" id="note-view-${n.id}">${escHtml(n.text)}
+          <div style="margin-top:5px"><button class="lm-btn" onclick="startEditNote('${n.id}')">Edit</button> <button class="lm-btn danger" onclick="removeNote('${n.id}','${lid}',${ki})">Delete</button></div>
+        </div>
+        <div class="note-edit" id="note-edit-${n.id}" style="display:none">
+          <textarea class="notes-ta" id="note-edit-ta-${n.id}" style="width:100%">${escHtml(n.text)}</textarea>
+          <div style="margin-top:5px"><button class="notes-btn" onclick="saveEditNote('${n.id}','${lid}',${ki})">Save</button> <button class="lm-btn" onclick="cancelEditNote('${n.id}')">Cancel</button></div>
+        </div>
+      </div>`;
     }).join('');
     tog.classList.add('has-notes');
   }
+}
+
+function startEditNote(noteId){
+  document.getElementById('note-view-'+noteId).style.display='none';
+  document.getElementById('note-edit-'+noteId).style.display='block';
+}
+function cancelEditNote(noteId){
+  document.getElementById('note-view-'+noteId).style.display='block';
+  document.getElementById('note-edit-'+noteId).style.display='none';
+}
+async function saveEditNote(noteId, lid, ki){
+  const newText = document.getElementById('note-edit-ta-'+noteId).value.trim();
+  if(!newText) return;
+  await updateNote(noteId, newText);
+  toggleKpiNotes(lid,ki);
+  setTimeout(()=>toggleKpiNotes(lid,ki),150);
+}
+async function removeNote(noteId, lid, ki){
+  if(!confirm('Delete this note? This cannot be undone.')) return;
+  await deleteNote(noteId);
+  toggleKpiNotes(lid,ki);
+  setTimeout(()=>toggleKpiNotes(lid,ki),150);
 }
 
 async function addNote(lid,ki,role){
@@ -507,10 +539,15 @@ async function addNote(lid,ki,role){
   const ta=document.getElementById('note-input-'+role+'-'+nid);
   const text=ta.value.trim();
   if(!text) return;
-  await saveNote(YEAR, PERIOD, lid, ki, role, SESSION.displayName, text);
-  ta.value='';
-  toggleKpiNotes(lid,ki);
-  setTimeout(()=>toggleKpiNotes(lid,ki),150);
+  try{
+    await saveNote(YEAR, PERIOD, lid, ki, role, SESSION.displayName, text);
+    ta.value='';
+    toggleKpiNotes(lid,ki);
+    setTimeout(()=>toggleKpiNotes(lid,ki),150);
+  }catch(e){
+    console.error(e);
+    alert('The note failed to save — please try again. (Error: '+e.message+')');
+  }
 }
 
 function openModal(preSelectId){

@@ -207,9 +207,13 @@ async function saveNote(year, period, leaderId, kpiIndex, role, author, text){
 
 async function loadMisses(year, period, leaderId){
   const snap = await db.collection('misses').where('year','==',String(year)).where('period','==',period).where('leaderId','==',leaderId).get();
-  const misses = snap.docs.map(d=>d.data());
+  const misses = snap.docs.map(d=>({...d.data(), id:d.id}));
   misses.sort((a,b)=>new Date(a.date)-new Date(b.date));
   return misses;
+}
+
+async function deleteMiss(missId){
+  await db.collection('misses').doc(missId).delete();
 }
 
 async function saveMiss(year, period, leaderId, kpiIndex, description, deduction, loggedBy){
@@ -226,7 +230,7 @@ async function loadNotesYear(year, leaderId){
 
 async function loadMissesYear(year, leaderId){
   const snap = await db.collection('misses').where('year','==',String(year)).where('leaderId','==',leaderId).get();
-  const misses = snap.docs.map(d=>d.data());
+  const misses = snap.docs.map(d=>({...d.data(), id:d.id}));
   misses.sort((a,b)=>new Date(a.date)-new Date(b.date));
   return misses;
 }

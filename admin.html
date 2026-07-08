@@ -548,7 +548,7 @@ function populateKpiSel(){
       const log=document.getElementById('missLog');
       log.innerHTML=misses.length? misses.map(m=>{
         const d=new Date(m.date).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-        return `<div class="miss-item"><b>-${m.deduction}pt</b> ${d} — ${escHtml(m.description)} <span style="color:var(--muted)">(${m.loggedBy})</span></div>`;
+        return `<div class="miss-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span><b>-${m.deduction}pt</b> ${d} — ${escHtml(m.description)} <span style="color:var(--muted)">(${m.loggedBy})</span></span><button class="lm-btn danger" style="flex-shrink:0" onclick="removeMiss('${m.id}','${lid}',${ki})">Undo</button></div>`;
       }).join('') : '<div style="color:var(--muted)">No misses logged.</div>';
     } else {
       document.getElementById('percentageControls').style.display='block';
@@ -579,6 +579,23 @@ async function logMiss(){
   await saveOneKpi(lid, ki);
   renderCards(); renderSummary();
   populateKpiSel(); document.getElementById('mKpi').value=ki; document.getElementById('mKpi').onchange();
+}
+
+async function removeMiss(missId, lid, ki){
+  if(!confirm('Undo this logged miss? The points will be added back to the score.')) return;
+  const l=LEADERS.find(x=>x.id===lid);
+  const k=l && l.kpis[ki];
+  if(!k) return;
+  const misses = (await loadMisses(YEAR, PERIOD, lid)).filter(m=>parseInt(m.kpiIndex)===ki);
+  const target = misses.find(m=>m.id===missId);
+  await deleteMiss(missId);
+  if(target){
+    k.progress = Math.min(100, k.progress + Number(target.deduction));
+    k.status = statusFromProgress(k.progress);
+    await saveOneKpi(lid, ki);
+  }
+  renderCards(); renderSummary();
+  document.getElementById('mKpi').onchange();
 }
 
 async function resetToCarryForward(){

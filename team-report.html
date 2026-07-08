@@ -86,7 +86,7 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);font-
 
   for(const l of LEADERS){
     const [rows, notes, misses] = await Promise.all([
-      loadKpiData(year, period, l.id),
+      loadKpiDataCarried(year, period, l.id),
       loadNotes(year, period, l.id),
       loadMisses(year, period, l.id)
     ]);

@@ -360,7 +360,7 @@ function changePeriod(){ PERIOD=document.getElementById('periodSel').value; load
 async function loadAll(){
   setStatus('Loading…','saving');
   try{
-    const rows = await loadKpiData(YEAR, PERIOD);
+    const rows = await loadKpiDataCarried(YEAR, PERIOD);
     LEADERS.forEach(l=>l.kpis.forEach(k=>{ k.progress=defaultProgress(k.kpiType); k.status=statusFromProgress(k.progress); }));
     rows.forEach(row=>{
       const l=LEADERS.find(x=>x.id===row.leaderId);
@@ -369,6 +369,7 @@ async function loadAll(){
       if(!k) return;
       k.progress=parseInt(row.progress)||0;
       k.status=statusFromProgress(k.progress);
+      k.carriedFrom=row.carriedFrom||null;
     });
     ebitdaPct = await getEbitda(YEAR, PERIOD);
     updateEbitdaUI();
@@ -427,6 +428,7 @@ function renderCards(){
         return `<div class="krow" id="krow-${nid}">
           <div class="krow-top"><div class="kname">KPI #${i+1} — ${k.label}${k.kpiType==='compliance'?' <span style=\"color:var(--muted);font-size:9px\">(pass/fail)</span>':''}</div></div>
           <div class="krow-mid"><div class="ktrack"><div class="kfill ${fClass(k.status)}" style="width:${k.progress}%"></div></div><span class="kbadge ${sClass(k.status)}">${k.progress}% \u00b7 ${sLabel(k.status)}</span></div>
+          ${k.carriedFrom?`<div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px">↳ carried forward from ${k.carriedFrom} — not yet updated this quarter</div>`:''}
           <div class="krow-actions">
             <span class="ktoggle" onclick="toggleDesc('krow-${nid}')">&#9658; Details</span>
             <span class="knotes-toggle" id="kntoggle-${nid}" onclick="toggleKpiNotes('${l.id}',${i})">&#9658; Notes</span>

@@ -140,6 +140,30 @@ async function loadKpiData(year, period, scopeLeaderId){
   return snap.docs.map(d=>d.data());
 }
 
+// Same as loadKpiData, but any KPI with no explicit entry yet THIS quarter is filled in
+// with its most recent prior-quarter value from the same year — so a new quarter starts
+// wherever the last one left off instead of resetting to blank. Nothing is written to
+// Firestore by this — it's a display-time fallback; Q1's actual saved data is untouched,
+// and the moment someone updates a KPI in the new quarter, that becomes its own real record.
+async function loadKpiDataCarried(year, period, scopeLeaderId){
+  const current = await loadKpiData(year, period, scopeLeaderId);
+  const haveKey = new Set(current.map(r=>r.leaderId+'|'+r.kpiIndex));
+  const periodIdx = PERIODS.indexOf(period);
+  if(periodIdx <= 0) return current; // Q1 has nothing earlier in the year to carry from
+
+  for(let i=periodIdx-1; i>=0; i--){
+    const priorRows = await loadKpiData(year, PERIODS[i], scopeLeaderId);
+    priorRows.forEach(r=>{
+      const key = r.leaderId+'|'+r.kpiIndex;
+      if(!haveKey.has(key)){
+        current.push({...r, period, carriedFrom: PERIODS[i]});
+        haveKey.add(key);
+      }
+    });
+  }
+  return current;
+}
+
 async function saveKpiRows(year, period, rows, updatedBy){
   const batch = db.batch();
   const now = new Date().toISOString();

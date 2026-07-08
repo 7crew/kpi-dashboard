@@ -96,13 +96,14 @@ function changePeriod(){ PERIOD=document.getElementById('periodSel').value; load
 async function loadAll(){
   setStatus('Loading…','saving');
   try{
-    const rows = await loadKpiData(YEAR, PERIOD, ME.id);
+    const rows = await loadKpiDataCarried(YEAR, PERIOD, ME.id);
     ME.kpis.forEach(k=>{k.progress=defaultProgress(k.kpiType);k.status=statusFromProgress(k.progress);});
     rows.forEach(row=>{
       const k=ME.kpis[parseInt(row.kpiIndex)];
       if(!k) return;
       k.progress=parseInt(row.progress)||0;
       k.status=statusFromProgress(k.progress);
+      k.carriedFrom=row.carriedFrom||null;
     });
     ebitdaPct = await getEbitda(YEAR, PERIOD);
     document.getElementById('ePct').textContent=ebitdaPct+'%';
@@ -146,6 +147,7 @@ function render(){
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span class="kbadge s-${k.status}">${k.progress}% · ${sLabel(k.status)}</span>
       </div>
+      ${k.carriedFrom?`<div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px">↳ carried forward from ${k.carriedFrom} — not yet updated this quarter</div>`:''}
       <div class="update-row">
         <input type="range" min="0" max="100" value="${k.progress}" id="range-${nid}" oninput="document.getElementById('rangeval-${nid}').textContent=this.value+'%';document.getElementById('statuspreview-${nid}').className='kbadge '+sClass(statusFromProgress(parseInt(this.value)));document.getElementById('statuspreview-${nid}').textContent=sLabel(statusFromProgress(parseInt(this.value)));">
         <span id="rangeval-${nid}">${k.progress}%</span>

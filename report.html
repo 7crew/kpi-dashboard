@@ -99,7 +99,7 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
   if(period){
     // ── SINGLE QUARTER REPORT ──
     const [rows, notes, misses, ebitdaPct] = await Promise.all([
-      loadKpiData(year, period, lid),
+      loadKpiDataCarried(year, period, lid),
       loadNotes(year, period, lid),
       loadMisses(year, period, lid),
       getEbitda(year, period)

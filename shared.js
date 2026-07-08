@@ -279,6 +279,12 @@ async function setEbitda(year, period, ebitda, ytdAmount){
   await db.collection('settings').doc(String(year)+'_'+period).set(data, {merge:true});
 }
 
+// Clears a specific quarter's saved EBITDA record so it goes back to carrying forward
+// from the prior quarter — same idea as deleteKpiRow, for the EBITDA card.
+async function deleteEbitda(year, period){
+  await db.collection('settings').doc(String(year)+'_'+period).delete();
+}
+
 // ── ONE-TIME MIGRATION ──
 // Moves any data saved before quarters existed (kpiData/notes/misses with no "period"
 // field, and the old settings/{year} doc) into the given target quarter. Safe to run

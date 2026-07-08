@@ -164,12 +164,6 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
 .lm-btn{padding:5px 11px;font-family:'DM Mono',monospace;font-size:9.5px;border-radius:6px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--subtext);cursor:pointer}
 .lm-btn:hover{border-color:var(--blue);color:var(--blue)}
 .lm-btn.danger:hover{border-color:var(--accent);color:var(--accent)}
-.audit-tbl{width:100%;border-collapse:collapse;font-size:10.5px}
-.audit-tbl th{text-align:left;padding:6px 8px;font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border2)}
-.audit-tbl td{padding:6px 8px;border-bottom:1px solid var(--border)}
-.audit-cell-explicit{cursor:pointer;font-weight:600;color:var(--accent);border-radius:4px;padding:2px 6px}
-.audit-cell-explicit:hover{background:#fdf0f0}
-.audit-cell-carried{color:var(--muted)}
 .kpi-field-block{border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)}
 .kpi-field-block input[type=text],.kpi-field-block select{margin-bottom:8px}
 .kpi-field-block .kpi-field-lbl{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
@@ -304,12 +298,6 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
         <div class="mfield"><label>Maintenance</label>
           <button class="mbtn mbtn-sec" style="width:100%" onclick="runMigration()">↻ Move Any Pre-Quarter Data Into <span id="migrationTarget"></span></button>
           <div style="font-size:10px;color:var(--muted);margin-top:6px">One-time fix: if progress, notes, or misses were saved before quarters existed, this moves them into whichever Year/Quarter is currently selected at the top of the dashboard. Safe to click more than once — already-migrated data is skipped.</div>
-        </div>
-        <hr class="mdiv">
-        <div class="mfield">
-          <label>Quarter Data Audit — <span id="auditYear"></span></label>
-          <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Every KPI that has its own saved value for a quarter, versus quarters just carrying forward the last saved number. Click any saved value to clear it (so that quarter goes back to carrying forward instead).</div>
-          <div id="auditTableWrap" style="overflow-x:auto"><div style="font-size:10px;color:var(--muted)">Loading…</div></div>
         </div>
       </div>
       <div id="leaderFormView" style="display:none">
@@ -649,10 +637,8 @@ function openTeamReport(){
 async function openManageLeaders(){
   document.getElementById('leadersModal').classList.add('open');
   document.getElementById('migrationTarget').textContent = YEAR+' '+PERIOD;
-  document.getElementById('auditYear').textContent = YEAR;
   backToLeadersList();
   await renderLeadersList();
-  await renderAudit();
 }
 function closeLeadersModal(){ document.getElementById('leadersModal').classList.remove('open'); }
 
@@ -673,42 +659,6 @@ async function runMigration(){
     setStatus('Migration failed','error');
     alert('Migration failed — check the console for details.');
   }
-}
-
-async function renderAudit(){
-  const wrap = document.getElementById('auditTableWrap');
-  wrap.innerHTML = '<div style="font-size:10px;color:var(--muted)">Loading…</div>';
-  const allLeaders = await loadLeaders(true);
-
-  // Pull the RAW (non-carried) explicit records for every quarter of this year.
-  const byQuarter = {};
-  for(const p of PERIODS){ byQuarter[p] = await loadKpiData(YEAR, p); }
-
-  let rows = '';
-  allLeaders.forEach(l=>{
-    l.kpis.forEach((k,i)=>{
-      const cells = PERIODS.map(p=>{
-        const rec = byQuarter[p].find(r=>r.leaderId===l.id && parseInt(r.kpiIndex)===i);
-        if(rec){
-          return `<span class="audit-cell-explicit" title="Click to clear this saved value" onclick="auditClear('${l.id}',${i},'${p}')">${rec.progress}%</span>`;
-        }
-        return `<span class="audit-cell-carried">carried</span>`;
-      });
-      rows += `<tr><td>${escHtml(l.name)}</td><td>${escHtml(k.label)}</td>${cells.map(c=>'<td>'+c+'</td>').join('')}</tr>`;
-    });
-  });
-
-  wrap.innerHTML = `<table class="audit-tbl">
-    <thead><tr><th>Leader</th><th>KPI</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="6" style="color:var(--muted)">No leaders yet.</td></tr>'}</tbody>
-  </table>`;
-}
-
-async function auditClear(leaderId, kpiIndex, period){
-  if(!confirm('Clear the saved value for this KPI in '+YEAR+' '+period+'? It will go back to carrying forward from the prior quarter.')) return;
-  await deleteKpiRow(YEAR, period, leaderId, kpiIndex);
-  await renderAudit();
-  if(period===PERIOD){ await loadAll(); renderCards(); renderSummary(); }
 }
 
 async function renderLeadersList(){

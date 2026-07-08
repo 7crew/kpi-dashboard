@@ -74,7 +74,7 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=14"></script>
+<script src="shared.js?v=16"></script>
 <script>
 (async function(){
   const SESSION = await requireSession('admin');
@@ -98,11 +98,12 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
 
   if(period){
     // ── SINGLE QUARTER REPORT ──
-    const [rows, notes, misses, ebitdaResult] = await Promise.all([
+    const [rows, notes, misses, ebitdaResult, targetResult] = await Promise.all([
       loadKpiDataCarried(year, period, lid),
       loadNotes(year, period, lid),
       loadMisses(year, period, lid),
-      getEbitdaCarried(year, period)
+      getEbitdaCarried(year, period),
+      getEbitdaTarget(year)
     ]);
     const ebitdaPct = ebitdaResult.value;
 
@@ -115,7 +116,7 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-
     const blend = blended(indivAvg, ebitdaPct);
     document.getElementById('scoreIndiv').textContent = indivAvg+'%';
     document.getElementById('scoreEbitda').textContent = ebitdaPct+'%';
-    document.getElementById('scoreEbitdaAmount').textContent = ebitdaResult.amount!=null ? (fmtMoney(ebitdaResult.amount)+' of '+fmtMoney(EBITDA_TARGET)) : '';
+    document.getElementById('scoreEbitdaAmount').textContent = ebitdaResult.amount!=null ? (fmtMoney(ebitdaResult.amount)+' of '+fmtMoney(targetResult.value)) : '';
     document.getElementById('scoreBlend').textContent = blend+'%';
 
     document.getElementById('kpiBlocks').innerHTML = l.kpis.map((k,i)=>{

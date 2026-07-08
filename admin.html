@@ -195,10 +195,19 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
   <div class="section-title">01 &nbsp; Company EBITDA Goal<span class="stag">70% of Annual Bonus — Shared Goal</span></div>
   <div class="ebitda-card">
     <div class="ebitda-top">
-      <div class="e-stat"><span class="lbl">2026 Target</span><div class="big">$24.5M</div><div class="sub">$24,544,113 · 100% payout threshold</div></div>
+      <div class="e-stat">
+        <span class="lbl" id="eTargetLabel">2026 Target</span>
+        <div class="big" id="eTargetBig">$24.5M</div>
+        <div class="sub" id="eTargetSub">$24,544,113 · 100% payout threshold</div>
+        <div class="ebitda-input-row">
+          <span class="ebitda-input-prefix">$</span>
+          <input type="number" id="ebitdaTargetInput" min="0" placeholder="New target" class="ebitda-direct-input" onkeydown="if(event.key==='Enter')setEbitdaTargetDirect()">
+          <button class="ebitda-set-btn" onclick="setEbitdaTargetDirect()">Set</button>
+        </div>
+      </div>
       <div class="e-stat">
         <span class="lbl">Current Progress</span>
-        <div class="big" id="ePct">10%</div>
+        <div class="big" id="ePct">0%</div>
         <div class="sub" id="eAmountSub">of annual EBITDA target</div>
         <div class="ebitda-input-row">
           <span class="ebitda-input-prefix">$</span>
@@ -208,7 +217,7 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
       </div>
       <div class="e-stat"><span class="lbl">Status</span><div class="big" id="eStat" style="font-size:20px;color:var(--muted)">Early Stage</div><div class="sub">Active this fiscal year</div><div id="eCarriedNote" style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px"></div></div>
     </div>
-    <div class="e-track"><div class="e-fill" id="eBar" style="width:10%"></div><span class="e-pct-label" id="eBarLabel">10%</span></div>
+    <div class="e-track"><div class="e-fill" id="eBar" style="width:0%"></div><span class="e-pct-label" id="eBarLabel">0%</span></div>
   </div>
 
   <div class="section-title">02 &nbsp; Individual KPI Goals<span class="stag">30% of Annual Bonus</span></div>
@@ -274,8 +283,8 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
       </div>
 
       <hr class="mdiv">
-      <div class="mfield"><label>EBITDA Progress % — <span id="mEbitdaVal">10</span>%</label>
-        <div class="range-row"><input type="range" id="mEbitda" min="0" max="100" value="10"><span class="rval" id="mEbitdaDisp">10%</span></div>
+      <div class="mfield"><label>EBITDA Progress % — <span id="mEbitdaVal">0</span>%</label>
+        <div class="range-row"><input type="range" id="mEbitda" min="0" max="100" value="0"><span class="rval" id="mEbitdaDisp">0%</span></div>
       </div>
     </div>
     <div class="modal-ft">
@@ -307,7 +316,6 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
         <div style="font-family:'DM Mono',monospace;font-size:9.5px;color:var(--muted);margin-bottom:12px" id="lfIdPreview"></div>
         <hr class="mdiv">
         <div class="mfield"><label>KPIs for <span id="lfYearLabel"></span></label>
-          <div id="lfKpiSourceNote" style="display:none;background:#fff3cd;color:#856404;font-size:10px;padding:8px 10px;border-radius:6px;margin-bottom:10px"></div>
           <div id="lfKpiList"></div>
           <button class="mbtn mbtn-sec" style="margin-top:8px" onclick="addKpiField()">+ Add KPI</button>
           <div style="font-size:10px;color:var(--muted);margin-top:8px">KPIs are saved per year — editing them here only affects <span id="lfYearLabel2"></span> and never changes how past years' reports look. Existing KPIs (from this same year) can be reworded, but not deleted or reordered, to protect the link to historical notes/scores.</div>
@@ -324,9 +332,9 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=14"></script>
+<script src="shared.js?v=16"></script>
 <script>
-let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=10, ebitdaAmount=null, ebitdaCarriedFrom=null;
+let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=0, ebitdaAmount=null, ebitdaCarriedFrom=null, ebitdaTargetValue=EBITDA_TARGET_DEFAULT;
 
 (async function init(){
   SESSION = await requireSession('admin');
@@ -377,7 +385,9 @@ async function loadAll(){
     ebitdaPct = ebitdaResult.value;
     ebitdaAmount = ebitdaResult.amount;
     ebitdaCarriedFrom = ebitdaResult.carriedFrom;
+    ebitdaTargetValue = (await getEbitdaTarget(YEAR)).value;
     updateEbitdaUI();
+    updateTargetUI();
     setStatus('✓ Loaded','saved'); setTimeout(()=>setStatus('',''),1200);
   }catch(e){ console.error(e); setStatus('Load failed','error'); }
 }
@@ -402,20 +412,37 @@ function updateEbitdaUI(){
   document.getElementById('eBarLabel').textContent=ebitdaPct+'%';
   document.getElementById('eStat').textContent=eStatus(ebitdaPct);
   document.getElementById('eAmountSub').textContent = ebitdaAmount!=null
-    ? (fmtMoney(ebitdaAmount)+' of '+fmtMoney(EBITDA_TARGET)+' target')
+    ? (fmtMoney(ebitdaAmount)+' of '+fmtMoney(ebitdaTargetValue)+' target')
     : 'of annual EBITDA target';
   const noteEl=document.getElementById('eCarriedNote');
   if(noteEl) noteEl.textContent = ebitdaCarriedFrom ? ('↳ carried forward from '+ebitdaCarriedFrom+' — not yet updated this quarter') : '';
 }
 
+function updateTargetUI(){
+  document.getElementById('eTargetLabel').textContent = YEAR+' Target';
+  document.getElementById('eTargetBig').textContent = '$'+(ebitdaTargetValue/1000000).toFixed(1)+'M';
+  document.getElementById('eTargetSub').textContent = fmtMoney(ebitdaTargetValue)+' · 100% payout threshold';
+}
 
+async function setEbitdaTargetDirect(){
+  const input=document.getElementById('ebitdaTargetInput');
+  const target=parseFloat(input.value);
+  if(isNaN(target)||target<=0){ input.style.borderColor='var(--accent)'; input.focus(); return; }
+  input.style.borderColor='';
+  ebitdaTargetValue=target;
+  updateTargetUI();
+  await setEbitdaTarget(YEAR, target);
+  await loadAll();
+  renderSummary();
+  input.value='';
+}
 
 async function setEbitdaDirect(){
   const input=document.getElementById('ebitdaDirectInput');
   const ytd=parseFloat(input.value);
   if(isNaN(ytd)||ytd<0){ input.style.borderColor='var(--accent)'; input.focus(); return; }
   input.style.borderColor='';
-  ebitdaPct=Math.min(100,Math.round((ytd/EBITDA_TARGET)*100));
+  ebitdaPct=Math.min(100,Math.round((ytd/ebitdaTargetValue)*100));
   ebitdaAmount=ytd;
   ebitdaCarriedFrom=null;
   updateEbitdaUI(); renderSummary();
@@ -430,7 +457,7 @@ function renderCards(){
     const a=avg(l.kpis);
     const statusLabel=a===0?'Not Started':a<25?'Early Stage':a<50?'In Progress':a<75?'On Track':a<100?'Strong':'Complete';
     const statusCls=a===0?'s-not-started':a<50?'s-at-risk':a<100?'s-on-track':'s-complete';
-    return `<div class="leader-card"><div class="leader-card-head"><div><div class="lname">${l.name}</div><div class="lrole">${l.title}</div>${l.kpisSourceYear?`<div style="font-size:9px;color:var(--amber);font-family:'DM Mono',monospace;margin-top:3px">↳ using ${l.kpisSourceYear}'s KPIs — not yet set for ${YEAR}</div>`:''}</div>
+    return `<div class="leader-card"><div class="leader-card-head"><div><div class="lname">${l.name}</div><div class="lrole">${l.title}</div></div>
       <div class="lavg-block"><div class="lavg-status-pill ${statusCls}">${statusLabel}</div><div class="lavg-pct">${a}% avg</div>
         <div class="card-btn-row">
           <button class="card-update-btn" onclick="openModal('${l.id}')">&#9998; Update</button>
@@ -438,7 +465,7 @@ function renderCards(){
           <button class="card-report-btn" onclick="openReport('${l.id}',false)">&#128200; Full Year</button>
         </div>
       </div></div>
-      <div class="leader-kpis">${l.kpis.map((k,i)=>{
+      <div class="leader-kpis">${l.kpis.length ? l.kpis.map((k,i)=>{
         const nid=l.id+'-'+i;
         return `<div class="krow" id="krow-${nid}">
           <div class="krow-top"><div class="kname">KPI #${i+1} — ${k.label}${k.kpiType==='compliance'?' <span style=\"color:var(--muted);font-size:9px\">(pass/fail)</span>':''}</div></div>
@@ -467,7 +494,7 @@ function renderCards(){
             </div>
           </div>
         </div>`;
-      }).join('')}</div></div>`;
+      }).join('') : `<div style="text-align:center;padding:20px 10px;color:var(--muted);font-size:11px">No KPIs set for ${YEAR} yet.<br><button class="mbtn mbtn-sec" style="margin-top:10px" onclick="openManageLeaders();setTimeout(()=>openLeaderForm('${l.id}'),150)">+ Add KPIs for ${YEAR}</button></div>`}</div></div>`;
   }).join('');
 }
 
@@ -768,14 +795,6 @@ async function openLeaderForm(id){
     editingLeader = all.find(l=>l.id===id);
   } else {
     editingLeader = null;
-  }
-
-  const sourceNote = document.getElementById('lfKpiSourceNote');
-  if(editingLeader && editingLeader.kpisSourceYear){
-    sourceNote.style.display='block';
-    sourceNote.textContent = `Showing ${editingLeader.kpisSourceYear}'s KPIs as a starting point — ${YEAR} doesn't have its own set yet. Edit as needed and Save to make these official for ${YEAR} (this won't change ${editingLeader.kpisSourceYear}'s data).`;
-  } else {
-    sourceNote.style.display='none';
   }
 
   document.getElementById('lfOriginalId').value = id || '';

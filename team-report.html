@@ -64,7 +64,7 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);font-
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<script src="shared.js?v=14"></script>
+<script src="shared.js?v=16"></script>
 <script>
 (async function(){
   const SESSION = await requireSession('admin');
@@ -83,7 +83,8 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--border);font-
 
   const ebitdaResultForTeam = await getEbitdaCarried(year, period);
   const ebitdaPct = ebitdaResultForTeam.value;
-  const ebitdaAmountText = ebitdaResultForTeam.amount!=null ? (fmtMoney(ebitdaResultForTeam.amount)+' of '+fmtMoney(EBITDA_TARGET)) : '';
+  const teamTargetValue = (await getEbitdaTarget(year)).value;
+  const ebitdaAmountText = ebitdaResultForTeam.amount!=null ? (fmtMoney(ebitdaResultForTeam.amount)+' of '+fmtMoney(teamTargetValue)) : '';
   const sections = [];
 
   for(const l of LEADERS){

@@ -97,12 +97,7 @@ async function loadLeaders(year, includeInactive){
 
 async function loadLeaderKpisWithFallback(year, leaderId){
   const doc = await db.collection('leaderKpis').doc(String(year)+'_'+leaderId).get();
-  if(doc.exists) return { kpis: doc.data().kpis, sourceYear: null };
-  for(let y=Number(year)-1; y>=Number(year)-10; y--){
-    const priorDoc = await db.collection('leaderKpis').doc(String(y)+'_'+leaderId).get();
-    if(priorDoc.exists) return { kpis: priorDoc.data().kpis, sourceYear: y };
-  }
-  return { kpis: [], sourceYear: null };
+  return { kpis: doc.exists ? doc.data().kpis : [], sourceYear: null };
 }
 
 // Explicitly saves this year's KPI list for a leader — always writes its own
@@ -284,12 +279,31 @@ async function loadMissesYear(year, leaderId){
 
 async function getEbitda(year, period){
   const doc = await db.collection('settings').doc(String(year)+'_'+period).get();
-  return doc.exists ? Number(doc.data().ebitda) : 10;
+  return doc.exists ? Number(doc.data().ebitda) : 0;
 }
 
 // Same idea as loadKpiDataCarried: if this quarter has no explicit EBITDA value saved
 // yet, fall back to the most recent prior quarter's value instead of resetting to 10%.
-const EBITDA_TARGET = 24544113;
+// The original 2026 target — kept as the ultimate fallback if no year has ever had
+// a target explicitly set. Real per-year targets are stored in ebitdaTargets/{year}.
+const EBITDA_TARGET_DEFAULT = 24544113;
+
+// Falls back to the most recent earlier year's target if this year doesn't have its
+// own set yet (targets often don't change every single year) — same carry idea as
+// everything else, but at the year level instead of the quarter level.
+async function getEbitdaTarget(year){
+  const doc = await db.collection('ebitdaTargets').doc(String(year)).get();
+  if(doc.exists) return { value: Number(doc.data().target), sourceYear: null };
+  for(let y=Number(year)-1; y>=Number(year)-15; y--){
+    const priorDoc = await db.collection('ebitdaTargets').doc(String(y)).get();
+    if(priorDoc.exists) return { value: Number(priorDoc.data().target), sourceYear: y };
+  }
+  return { value: EBITDA_TARGET_DEFAULT, sourceYear: null };
+}
+
+async function setEbitdaTarget(year, target){
+  await db.collection('ebitdaTargets').doc(String(year)).set({ target });
+}
 
 async function getEbitdaCarried(year, period){
   const doc = await db.collection('settings').doc(String(year)+'_'+period).get();
@@ -305,7 +319,7 @@ async function getEbitdaCarried(year, period){
       return { value: Number(d.ebitda), amount: d.ytdAmount!=null?Number(d.ytdAmount):null, carriedFrom: PERIODS[i] };
     }
   }
-  return { value: 10, amount: null, carriedFrom: null };
+  return { value: 0, amount: null, carriedFrom: null };
 }
 
 // ytdAmount is optional — pass it whenever you have the real dollar figure (from the

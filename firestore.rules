@@ -42,6 +42,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Annual EBITDA target amount, configurable per year
+    match /ebitdaTargets/{year} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Org structure: leaders + their KPI definitions. Everyone signed in can read
     // (leaders need to see their own KPI text); only admins can add/edit/deactivate.
     match /leaders/{leaderId} {

@@ -172,7 +172,7 @@ footer{padding:16px 36px;border-top:1px solid var(--border);display:flex;justify
 <body>
 
 <header>
-  <div><div class="hdr-title">7CREW</div></div>
+  <div style="display:flex;align-items:center;gap:10px"><img src="7crew-logo.png" alt="" style="height:32px;width:auto"><div class="hdr-title">7CREW</div></div>
   <div style="flex:1;padding:0 24px">
     <div class="hdr-title">Leadership KPI Report — Admin</div>
     <div class="hdr-sub" id="whoami">Annual Incentive Scorecard · Executive Leadership Team</div>
@@ -344,7 +344,15 @@ let SESSION=null, YEAR=currentYear(), PERIOD=currentQuarter(), ebitdaPct=0, ebit
   const ySel=document.getElementById('yearSel');
   const thisYear=currentYear();
   const startYear=2026; // the year this program began — no point showing anything earlier
-  YEAR=Math.max(thisYear, startYear);
+
+  // Reopen to whichever Year/Quarter was last viewed on this browser, so it stops
+  // jumping back to "today's calendar quarter" every time — only a brand-new visitor
+  // (nothing saved yet) falls back to the calendar-based guess.
+  const savedYear = localStorage.getItem('kpi_last_year');
+  const savedPeriod = localStorage.getItem('kpi_last_period');
+  YEAR = savedYear ? parseInt(savedYear) : Math.max(thisYear, startYear);
+  PERIOD = savedPeriod || PERIOD;
+
   await populateYearDropdown();
   document.getElementById('periodSel').value = PERIOD;
   const fmt=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
@@ -366,7 +374,7 @@ function updateStatusPreview(progress){
 
 function setStatus(msg,cls){ const el=document.getElementById('saveStatus'); el.textContent=msg; el.className='save-status '+cls; }
 
-function changeYear(){ YEAR=parseInt(document.getElementById('yearSel').value); loadLeaders(YEAR).then(loadAll).then(()=>{renderCards();renderSummary();}); }
+function changeYear(){ YEAR=parseInt(document.getElementById('yearSel').value); localStorage.setItem('kpi_last_year', YEAR); loadLeaders(YEAR).then(loadAll).then(()=>{renderCards();renderSummary();}); }
 
 // Builds the Year dropdown from a rolling window (2026 through 2 years from today,
 // which auto-advances every year on its own) plus any years an admin has manually
@@ -393,7 +401,7 @@ async function addYearPrompt(){
   document.getElementById('yearSel').value = year;
   changeYear();
 }
-function changePeriod(){ PERIOD=document.getElementById('periodSel').value; loadAll().then(()=>{renderCards();renderSummary();}); }
+function changePeriod(){ PERIOD=document.getElementById('periodSel').value; localStorage.setItem('kpi_last_period', PERIOD); loadAll().then(()=>{renderCards();renderSummary();}); }
 
 async function loadAll(){
   setStatus('Loading…','saving');
